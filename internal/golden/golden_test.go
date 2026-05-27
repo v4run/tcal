@@ -16,6 +16,9 @@ func TestAssert_PassesWhenContentMatches(t *testing.T) {
 }
 
 func TestAssert_FailsWhenContentDiffers(t *testing.T) {
+	if *update {
+		t.Skip("skipping mismatch-detection test in -update mode")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "fixture.golden")
 	if err := os.WriteFile(path, []byte("hello\n"), 0o644); err != nil {
