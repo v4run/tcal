@@ -125,7 +125,7 @@ All composition uses `lipgloss.JoinHorizontal` / `JoinVertical`, which correctly
 
 ### Today highlight
 
-The combined highlight (default) renders today as `[22]` with reverse video AND an accent-color foreground. In the day grid, the bracketed form consumes 4 columns where other days consume 3 (`" 22"`); the highlight column trims one space from the adjacent gutter to keep alignment (the trick BSD `cal` uses). The `--highlight` flag exposes `combined | reverse | bracket | color | none` for users who want a lighter touch.
+The combined highlight (default) renders today with reverse video AND an accent-color foreground — no brackets, preserving grid alignment. The `[22]` bracketed style is available via `--highlight=bracket` for users who prefer it (note: produces rows 1 char wider for 2-digit days). The `--highlight` flag exposes `combined | reverse | bracket | color | none` for users who want a lighter touch.
 
 ### Centering edge cases
 

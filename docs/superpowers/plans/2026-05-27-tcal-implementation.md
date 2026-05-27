@@ -2,6 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## Post-implementation amendments
+
+- 2026-05-27: `HighlightAll` semantics changed to `Reverse | Color` (no brackets) per user feedback after Task 14. See commit history.
+
 **Goal:** Build `tcal`, a Go CLI that renders a live, center-aligned calendar widget with a block-digit clock and four multi-month layouts, plus a one-shot `--print` mode that emits the same layouts to stdout.
 
 **Architecture:** Pure renderer + thin wrappers. A single `internal/render` package transforms `(state, opts) → string`; a Bubble Tea model wraps it for live mode, a one-shot handler wraps it for print. The renderer never imports the TUI; both modes share 100% of layout/centering code.

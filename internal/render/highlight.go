@@ -10,7 +10,7 @@ const (
 	HighlightReverse HighlightMask = 1 << 0
 	HighlightBracket HighlightMask = 1 << 1
 	HighlightColor   HighlightMask = 1 << 2
-	HighlightAll                   = HighlightReverse | HighlightBracket | HighlightColor
+	HighlightAll                   = HighlightReverse | HighlightColor
 )
 
 // accentColor is used when HighlightColor is set. Lipgloss degrades to the

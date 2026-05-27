@@ -33,13 +33,10 @@ func weekdayRow(weekStart time.Weekday) string {
 // day cells. Today's cell is decorated via opts.Highlight; non-month days
 // render as blank cells.
 //
-// Alignment limitation: when opts.Highlight has HighlightBracket set and
-// today is a 2-digit day, the bracketed row is 1 char wider than other
-// rows in the same block (the `[DD]` cell adds 2 chars over `DD`, but the
-// trick of dropping one gutter recovers only 1). The discrepancy is
-// visually minor when combined with reverse video and accent color
-// (HighlightAll). Resolving it perfectly requires a 3-char notation
-// (e.g., `22*` instead of `[22]`); deferred to v0.2.
+// Note: with opts.Highlight = HighlightBracket (explicit, not the default
+// HighlightAll), today's row is 1 char wider than other rows for 2-digit
+// days. This is acceptable when callers know they're opting into brackets;
+// the default combined highlight (reverse+color) preserves alignment.
 func RenderMonth(m calendar.Month, today time.Time, opts Options) string {
 	const gridWidth = 20
 

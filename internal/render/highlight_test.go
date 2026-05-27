@@ -1,9 +1,17 @@
 package render
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
+
+// stripANSI removes ANSI escape sequences from s, returning the visible text.
+var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+func stripANSI(s string) string {
+	return ansiRE.ReplaceAllString(s, "")
+}
 
 func TestHighlight_None(t *testing.T) {
 	got := Highlight("22", HighlightNone)
@@ -38,9 +46,21 @@ func TestHighlight_ReverseProducesAnsi(t *testing.T) {
 	}
 }
 
-func TestHighlight_Combined_IncludesBrackets(t *testing.T) {
-	got := Highlight("22", HighlightReverse|HighlightBracket|HighlightColor)
-	if !strings.Contains(got, "[22]") {
-		t.Errorf("combined must contain [22], got %q", got)
+func TestHighlight_Combined_HasNoBrackets(t *testing.T) {
+	got := Highlight("22", HighlightReverse|HighlightColor)
+	visible := stripANSI(got)
+	if strings.Contains(visible, "[") || strings.Contains(visible, "]") {
+		t.Errorf("combined (reverse+color) must NOT contain brackets, got %q", got)
+	}
+	if !strings.Contains(got, "22") {
+		t.Errorf("combined must preserve the day digits, got %q", got)
+	}
+}
+
+func TestHighlight_All_EqualsCombined(t *testing.T) {
+	got := Highlight("22", HighlightAll)
+	want := Highlight("22", HighlightReverse|HighlightColor)
+	if got != want {
+		t.Errorf("HighlightAll should equal Reverse|Color, got %q want %q", got, want)
 	}
 }
