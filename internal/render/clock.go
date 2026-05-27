@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // digitGlyphs are 5 rows × 4 cols each for "0"–"9". Use full-block "█".
@@ -99,12 +100,13 @@ func RenderClock(now time.Time, style ClockStyle) string {
 		clk := now.Format("15 : 04 : 05")
 		yearDay := now.YearDay()
 		_, week := now.ISOWeek()
-		line3 := fmt.Sprintf("Week %d · Day %d of 365", week, yearDay)
+		totalDays := time.Date(now.Year(), 12, 31, 0, 0, 0, 0, now.Location()).YearDay()
+		line3 := fmt.Sprintf("Week %d · Day %d of %d", week, yearDay, totalDays)
 		width := 31
 		top := "┌" + strings.Repeat("─", width-2) + "┐"
 		bot := "└" + strings.Repeat("─", width-2) + "┘"
 		mid := func(s string) string {
-			return "│ " + s + strings.Repeat(" ", width-3-len(s)) + "│"
+			return "│ " + s + strings.Repeat(" ", width-3-utf8.RuneCountInString(s)) + "│"
 		}
 		return strings.Join([]string{top, mid(date), mid(clk), mid(line3), bot}, "\n")
 	default: // ClockBlock
