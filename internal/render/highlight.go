@@ -13,10 +13,11 @@ const (
 	HighlightAll                   = HighlightReverse | HighlightColor
 )
 
-// accentColor is used when HighlightColor is set. Lipgloss degrades to the
-// nearest supported color on limited terminals and emits no escape sequences
-// when NO_COLOR is set or the writer is not a terminal.
-var accentColor = lipgloss.Color("214") // soft orange
+// accentColor is used when HighlightColor is set. ANSI 3 maps to the
+// terminal's themed yellow — gruvbox-yellow, solarized-yellow, etc. — so the
+// highlight inherits whatever palette the user has configured. Lipgloss emits
+// no escape sequences when NO_COLOR is set or the writer is not a terminal.
+var accentColor = lipgloss.Color("3")
 
 // Highlight wraps text (a day number string with no surrounding spaces) with
 // the selected decorations and returns the resulting renderable string.
