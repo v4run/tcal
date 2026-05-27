@@ -32,6 +32,14 @@ func weekdayRow(weekStart time.Weekday) string {
 // 20 chars wide ("Su Mo Tu We Th Fr Sa" = 20 chars) with one space between
 // day cells. Today's cell is decorated via opts.Highlight; non-month days
 // render as blank cells.
+//
+// Alignment limitation: when opts.Highlight has HighlightBracket set and
+// today is a 2-digit day, the bracketed row is 1 char wider than other
+// rows in the same block (the `[DD]` cell adds 2 chars over `DD`, but the
+// trick of dropping one gutter recovers only 1). The discrepancy is
+// visually minor when combined with reverse video and accent color
+// (HighlightAll). Resolving it perfectly requires a 3-char notation
+// (e.g., `22*` instead of `[22]`); deferred to v0.2.
 func RenderMonth(m calendar.Month, today time.Time, opts Options) string {
 	const gridWidth = 20
 
@@ -78,10 +86,14 @@ func RenderMonth(m calendar.Month, today time.Time, opts Options) string {
 			}
 			line.WriteString(cell)
 		}
-		b.WriteString(strings.TrimRight(line.String(), " "))
+		row := line.String()
+		if visibleLen := len([]rune(row)); visibleLen < gridWidth {
+			row += strings.Repeat(" ", gridWidth-visibleLen)
+		}
+		b.WriteString(row)
 		b.WriteString("\n")
 	}
-	return strings.TrimRight(b.String(), "\n")
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 func sameYMD(a, b time.Time) bool {
