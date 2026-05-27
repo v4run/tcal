@@ -21,10 +21,38 @@ func RenderLayout(layout Layout, months []calendar.Month, today time.Time, opts 
 		return joinHorizontal(blocks)
 	case LayoutVertical:
 		return joinVertical(blocks)
+	case LayoutGrid:
+		return joinGrid(blocks, 3)
+	case LayoutFocus:
+		return joinHorizontal(blocks)
 	default:
-		// Filled in by Task 8 (grid, focus).
 		return joinVertical(blocks)
 	}
+}
+
+// joinGrid arranges blocks in rows of cols, joined horizontally within each
+// row and vertically across rows.
+func joinGrid(blocks []string, cols int) string {
+	if cols < 1 {
+		cols = 1
+	}
+	rows := make([]string, 0)
+	for i := 0; i < len(blocks); i += cols {
+		end := i + cols
+		if end > len(blocks) {
+			end = len(blocks)
+		}
+		row := blocks[i:end]
+		rows = append(rows, joinHorizontal(row))
+	}
+	withGutters := make([]string, 0, 2*len(rows)-1)
+	for i, r := range rows {
+		if i > 0 {
+			withGutters = append(withGutters, "")
+		}
+		withGutters = append(withGutters, r)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, withGutters...)
 }
 
 func joinHorizontal(blocks []string) string {
