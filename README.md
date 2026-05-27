@@ -61,7 +61,7 @@ After any change to layout/centering code, run through:
 - [ ] `tcal` — horizontal layout, clock ticks, terminal resize re-centers.
 - [ ] `tcal --layout grid` — 12-month wallchart fits in a standard terminal.
 - [ ] `tcal --print --layout grid --date 2026-01 > /tmp/y.txt && cat /tmp/y.txt` — clean static output.
-- [ ] `NO_COLOR=1 tcal` — combined highlight degrades to bracket-only; no ANSI escapes.
+- [ ] `NO_COLOR=1 tcal` — no color escapes in output; today still distinguishable via reverse video.
 - [ ] Run in a 40×10 terminal — "too narrow" hint appears at the top.
 - [ ] `tcal --date 2026-13` — exits non-zero with a one-line error.
 
