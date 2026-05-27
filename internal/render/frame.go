@@ -3,7 +3,7 @@ package render
 import (
 	"fmt"
 
-	"github.com/varun/tcal/internal/calendar"
+	"github.com/v4run/tcal/internal/calendar"
 )
 
 func defaultMonths(layout Layout) int {

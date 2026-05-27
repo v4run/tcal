@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/varun/tcal/internal/golden"
+	"github.com/v4run/tcal/internal/golden"
 )
 
 func TestClock_Block_FullTime(t *testing.T) {

@@ -5,18 +5,31 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
 
-	"github.com/varun/tcal/internal/printout"
-	"github.com/varun/tcal/internal/render"
-	"github.com/varun/tcal/internal/tui"
+	"github.com/v4run/tcal/internal/printout"
+	"github.com/v4run/tcal/internal/render"
+	"github.com/v4run/tcal/internal/tui"
 )
 
-const version = "0.1.0"
+// fallbackVersion is reported only when build info is unavailable
+// (which shouldn't happen for Go ≥ 1.18 binaries). `go install` users
+// get the actual module version from runtime/debug.ReadBuildInfo.
+const fallbackVersion = "v0.1.0"
+
+func versionString() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if v := info.Main.Version; v != "" && v != "(devel)" {
+			return v
+		}
+	}
+	return fallbackVersion
+}
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
@@ -51,7 +64,7 @@ func run(args []string, stdout, stderr *os.File) error {
 		return err
 	}
 	if *showVersion {
-		fmt.Fprintln(stdout, "tcal", version)
+		fmt.Fprintln(stdout, "tcal", versionString())
 		return errVersion
 	}
 

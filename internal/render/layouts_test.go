@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/varun/tcal/internal/calendar"
-	"github.com/varun/tcal/internal/golden"
+	"github.com/v4run/tcal/internal/calendar"
+	"github.com/v4run/tcal/internal/golden"
 )
 
 func anchorApril2026() time.Time {

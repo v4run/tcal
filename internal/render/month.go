@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/varun/tcal/internal/calendar"
+	"github.com/v4run/tcal/internal/calendar"
 )
 
 // monthHeader returns the centered "Month Year" line, padded to gridWidth.

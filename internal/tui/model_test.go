@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/varun/tcal/internal/render"
+	"github.com/v4run/tcal/internal/render"
 )
 
 func newTestModel(anchor time.Time) Model {

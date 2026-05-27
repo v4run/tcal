@@ -36,7 +36,7 @@
 
 Run from project root:
 ```bash
-go mod init github.com/varun/tcal
+go mod init github.com/v4run/tcal
 ```
 
 - [ ] **Step 2: Add direct dependencies**
@@ -771,8 +771,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/varun/tcal/internal/calendar"
-	"github.com/varun/tcal/internal/golden"
+	"github.com/v4run/tcal/internal/calendar"
+	"github.com/v4run/tcal/internal/golden"
 )
 
 func TestRenderMonth_April2026_SundayStart_NoToday(t *testing.T) {
@@ -889,7 +889,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/varun/tcal/internal/calendar"
+	"github.com/v4run/tcal/internal/calendar"
 )
 
 // monthHeader returns the centered "Month Year" line, padded to gridWidth.
@@ -1028,7 +1028,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/varun/tcal/internal/golden"
+	"github.com/v4run/tcal/internal/golden"
 )
 
 func TestClock_Block_FullTime(t *testing.T) {
@@ -1265,8 +1265,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/varun/tcal/internal/calendar"
-	"github.com/varun/tcal/internal/golden"
+	"github.com/v4run/tcal/internal/calendar"
+	"github.com/v4run/tcal/internal/golden"
 )
 
 func anchorApril2026() time.Time {
@@ -1326,7 +1326,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/varun/tcal/internal/calendar"
+	"github.com/v4run/tcal/internal/calendar"
 )
 
 const monthGutter = "  " // two-space gutter between months in horizontal/grid
@@ -1583,7 +1583,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/varun/tcal/internal/golden"
+	"github.com/v4run/tcal/internal/golden"
 )
 
 func TestFrame_Focus_April2026_Today22(t *testing.T) {
@@ -1663,7 +1663,7 @@ package render
 import (
 	"fmt"
 
-	"github.com/varun/tcal/internal/calendar"
+	"github.com/v4run/tcal/internal/calendar"
 )
 
 func defaultMonths(layout Layout) int {
@@ -1794,7 +1794,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/varun/tcal/internal/render"
+	"github.com/v4run/tcal/internal/render"
 )
 
 func TestRun_WritesGrid(t *testing.T) {
@@ -1844,7 +1844,7 @@ import (
 	"io"
 	"syscall"
 
-	"github.com/varun/tcal/internal/render"
+	"github.com/v4run/tcal/internal/render"
 )
 
 // Run renders state once via render.Frame and writes the result + trailing
@@ -1903,7 +1903,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/varun/tcal/internal/render"
+	"github.com/v4run/tcal/internal/render"
 )
 
 func newTestModel(anchor time.Time) Model {
@@ -2048,7 +2048,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/varun/tcal/internal/render"
+	"github.com/v4run/tcal/internal/render"
 )
 
 // Model is the Bubble Tea model for the live calendar widget.
@@ -2181,9 +2181,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
 
-	"github.com/varun/tcal/internal/printout"
-	"github.com/varun/tcal/internal/render"
-	"github.com/varun/tcal/internal/tui"
+	"github.com/v4run/tcal/internal/printout"
+	"github.com/v4run/tcal/internal/render"
+	"github.com/v4run/tcal/internal/tui"
 )
 
 const version = "0.1.0"
@@ -2437,7 +2437,7 @@ A live terminal calendar widget with a block-digit clock and four multi-month la
 ## Install
 
 ```
-go install github.com/varun/tcal/cmd/tcal@latest
+go install github.com/v4run/tcal/cmd/tcal@latest
 ```
 
 Or from source:

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/varun/tcal/internal/calendar"
-	"github.com/varun/tcal/internal/golden"
+	"github.com/v4run/tcal/internal/calendar"
+	"github.com/v4run/tcal/internal/golden"
 )
 
 func TestRenderMonth_April2026_SundayStart_NoToday(t *testing.T) {

@@ -5,7 +5,7 @@ A live terminal calendar widget with a block-digit clock and three multi-month l
 ## Install
 
 ```
-go install github.com/varun/tcal/cmd/tcal@latest
+go install github.com/v4run/tcal/cmd/tcal@latest
 ```
 
 Or from source:

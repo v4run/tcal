@@ -6,7 +6,7 @@ import (
 	"io"
 	"syscall"
 
-	"github.com/varun/tcal/internal/render"
+	"github.com/v4run/tcal/internal/render"
 )
 
 // Run renders state once via render.Frame and writes the result + trailing

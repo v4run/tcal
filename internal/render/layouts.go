@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/varun/tcal/internal/calendar"
+	"github.com/v4run/tcal/internal/calendar"
 )
 
 const monthGutter = "  " // two-space gutter between months in horizontal/grid

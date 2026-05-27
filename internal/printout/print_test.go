@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/varun/tcal/internal/render"
+	"github.com/v4run/tcal/internal/render"
 )
 
 func TestRun_WritesGrid(t *testing.T) {
