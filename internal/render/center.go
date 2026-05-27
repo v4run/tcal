@@ -1,6 +1,10 @@
 package render
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Fit centers block (a newline-separated string) within (width, height).
 // height=0 disables vertical centering (used by print mode).
@@ -49,9 +53,7 @@ func Fit(block string, width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
-// visibleWidth returns rune-count, ignoring ANSI escape sequences.
-// (We won't have ANSI in center's input until layouts are built; this is a
-// forward-compatible placeholder swapped for lipgloss.Width in a later task.)
+// visibleWidth returns the visible width of s, stripping ANSI escape sequences.
 func visibleWidth(s string) int {
-	return len([]rune(s))
+	return lipgloss.Width(s)
 }
