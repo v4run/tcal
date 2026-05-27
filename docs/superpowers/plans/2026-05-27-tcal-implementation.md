@@ -5,6 +5,7 @@
 ## Post-implementation amendments
 
 - 2026-05-27: `HighlightAll` semantics changed to `Reverse | Color` (no brackets) per user feedback after Task 14. See commit history.
+- 2026-05-27: Dropped `LayoutFocus` per user feedback after Task 14. Focus and Horizontal produced identical output in v0.1.0; collapsing them frees the `4` keybinding. Default layout is now `horizontal`. See commit history.
 
 **Goal:** Build `tcal`, a Go CLI that renders a live, center-aligned calendar widget with a block-digit clock and four multi-month layouts, plus a one-shot `--print` mode that emits the same layouts to stdout.
 

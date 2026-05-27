@@ -8,12 +8,12 @@ import (
 	"github.com/varun/tcal/internal/golden"
 )
 
-func TestFrame_Focus_April2026_Today22(t *testing.T) {
+func TestFrame_Horizontal_April2026_Today22(t *testing.T) {
 	state := State{
 		Anchor: time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
 		Today:  time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC),
 		Now:    time.Date(2026, 4, 22, 14, 32, 7, 0, time.UTC),
-		Layout: LayoutFocus,
+		Layout: LayoutHorizontal,
 		Width:  100,
 		Height: 30,
 	}
@@ -25,7 +25,7 @@ func TestFrame_Focus_April2026_Today22(t *testing.T) {
 		WithClock:  true,
 	}
 	got := Frame(state, o)
-	golden.Assert(t, "testdata/frame_focus_april2026_today22.golden", got)
+	golden.Assert(t, "testdata/frame_horizontal_april2026_today22.golden", got)
 
 	if !strings.Contains(got, "[22]") {
 		t.Error("frame should include today highlight")

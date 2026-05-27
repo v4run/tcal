@@ -7,12 +7,12 @@ Status: Draft (pending review)
 
 `tcal` is a terminal calendar widget written in Go. By default it renders a live, center-aligned calendar with a large block-digit clock in the terminal, ticking every second. The same binary supports a one-shot `--print` mode that emits a static rendered calendar to stdout (suitable for piping to `lpr`, redirecting to a file, or embedding in scripts).
 
-The calendar can be displayed in four arrangements — horizontal strip, vertical stack, year-wallchart grid, and focus (large current month with smaller neighbors) — and the user switches between them at runtime via flag or keypress.
+The calendar can be displayed in three arrangements — horizontal strip, vertical stack, and year-wallchart grid — and the user switches between them at runtime via flag or keypress.
 
 ## Goals
 
 - Live always-on widget suitable for a tmux pane or dedicated terminal.
-- Four interchangeable multi-month layouts, all sharing one rendering pipeline.
+- Three interchangeable multi-month layouts, all sharing one rendering pipeline.
 - Print mode that uses the same renderer and produces clean stdout output.
 - Content centered horizontally and vertically in the terminal viewport.
 - Single static binary, easy to install and run.
@@ -40,7 +40,7 @@ tcal/
 │   │   └── week.go           week-start helpers, day-of-year, ISO week#
 │   ├── render/               pure rendering; no TUI, no I/O
 │   │   ├── month.go          render one Month block to a string
-│   │   ├── layouts.go        4 layouts: horizontal / vertical / grid / focus
+│   │   ├── layouts.go        3 layouts: horizontal / vertical / grid
 │   │   ├── clock.go          block-digit ASCII glyphs (0–9, colon, space)
 │   │   ├── highlight.go      today decoration (reverse + bracket + accent color)
 │   │   └── center.go         H+V center a block within (width, height)
@@ -77,7 +77,7 @@ type State struct {
     Anchor time.Time  // first day of focus month
     Today  time.Time
     Now    time.Time  // for clock
-    Layout Layout     // Horizontal | Vertical | Grid | Focus
+    Layout Layout     // Horizontal | Vertical | Grid
     Months int        // count; 0 = layout default
     Width  int        // terminal cols
     Height int        // terminal rows
@@ -105,8 +105,6 @@ render.layouts.<layout>(monthBlocks, opts) → string
    // horizontal: lipgloss.JoinHorizontal with gutter
    // vertical:   lipgloss.JoinVertical with blank-line gutter
    // grid:       horizontal join within rows, vertical join across rows
-   // focus:      big center month + small neighbors flanking it
-
 render.clock.Render(now, ClockStyle) → string
    // block-digit ASCII; 5 rows tall, fixed col width per glyph
 
@@ -162,7 +160,7 @@ View():    return render.Frame(state, opts)
 | `l` / `→`       | Anchor + 1 month                        |
 | `j` / `↓`       | Anchor − 1 year                         |
 | `k` / `↑`       | Anchor + 1 year                         |
-| `1` … `4`       | Layout: horizontal / vertical / grid / focus |
+| `1` / `2` / `3`  | Layout: horizontal / vertical / grid        |
 | `t`             | Jump anchor to today's month            |
 | `?`             | Toggle help overlay                     |
 | `q` / `Ctrl-C`  | Quit                                    |
@@ -187,10 +185,10 @@ The block-digit clock is omitted by default in print mode (a 5-line ASCII clock 
 
 | Flag             | Default              | Notes                                      |
 |------------------|----------------------|--------------------------------------------|
-| `--layout`       | `focus`              | `horizontal \| vertical \| grid \| focus`  |
+| `--layout`       | `horizontal`         | `horizontal \| vertical \| grid`           |
 | `--date`         | today                | `YYYY-MM` or `YYYY-MM-DD`                  |
 | `--year`         | (anchor year)        | shorthand for `--date=YYYY-01`             |
-| `--months`       | layout default       | per-layout: 3 / 3 / 12 / 3                 |
+| `--months`       | layout default       | per-layout: 3 / 3 / 12                     |
 | `--week-start`   | `sun`                | `sun \| mon`                               |
 | `--highlight`    | `combined`           | `combined \| reverse \| bracket \| color \| none` |
 | `--no-color`     | off                  | also honors `NO_COLOR` env var             |
@@ -208,7 +206,6 @@ The block-digit clock is omitted by default in print mode (a 5-line ASCII clock 
 | horizontal  | 3              | prev / current / next, side-by-side            |
 | vertical    | 3              | prev / current / next, stacked                 |
 | grid        | 12             | full year, 3×4 (or 4×3 if terminal is wide)    |
-| focus       | 3              | current month large, prev + next small on sides |
 
 All overridable via `--months=N`.
 
@@ -228,7 +225,7 @@ The renderer is the high-leverage test target.
 
 - **`internal/calendar`** — table-driven tests for month-grid construction across leap years, year boundaries, both week-start modes (~30 cases).
 - **`internal/render/month`** — golden-file tests: render fixed months at fixed dates, compare byte-for-byte against checked-in `.golden` files. One golden per (week-start × today-position-in-grid) combination.
-- **`internal/render/layouts`** — golden-file tests per layout at multiple widths (narrow / medium / wide). Verifies horizontal joining, vertical stacking, grid wrap-points, focus composition.
+- **`internal/render/layouts`** — golden-file tests per layout at multiple widths (narrow / medium / wide). Verifies horizontal joining, vertical stacking, grid wrap-points.
 - **`internal/render/clock`** — golden-file tests for each digit 0–9 and a few full times.
 - **`internal/render/center`** — unit tests for padding math at various `(content, viewport)` combinations including too-small cases.
 - **`internal/tui`** — minimal: assert keybindings mutate state correctly by calling `Update` directly with synthetic `tea.KeyMsg`. Re-rendering is already exercised by the renderer tests.

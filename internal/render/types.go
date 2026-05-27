@@ -6,8 +6,7 @@ import "time"
 type Layout int
 
 const (
-	LayoutFocus Layout = iota
-	LayoutHorizontal
+	LayoutHorizontal Layout = iota
 	LayoutVertical
 	LayoutGrid
 )

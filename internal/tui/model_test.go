@@ -15,7 +15,7 @@ func newTestModel(anchor time.Time) Model {
 			Anchor: anchor,
 			Today:  anchor,
 			Now:    anchor,
-			Layout: render.LayoutFocus,
+			Layout: render.LayoutHorizontal,
 			Width:  100,
 			Height: 30,
 		},
@@ -87,7 +87,6 @@ func TestUpdate_LayoutKeysSwitchLayout(t *testing.T) {
 		{'1', render.LayoutHorizontal},
 		{'2', render.LayoutVertical},
 		{'3', render.LayoutGrid},
-		{'4', render.LayoutFocus},
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.key), func(t *testing.T) {

@@ -34,7 +34,7 @@ func run(args []string, stdout, stderr *os.File) error {
 	fs := flag.NewFlagSet("tcal", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
-	layout := fs.String("layout", "focus", "horizontal|vertical|grid|focus")
+	layout := fs.String("layout", "horizontal", "horizontal|vertical|grid")
 	date := fs.String("date", "", "YYYY-MM or YYYY-MM-DD (default today)")
 	year := fs.Int("year", 0, "shorthand for --date=YYYY-01")
 	months := fs.Int("months", 0, "number of months (0 = layout default)")
@@ -141,10 +141,8 @@ func parseLayout(s string) (render.Layout, error) {
 		return render.LayoutVertical, nil
 	case "grid", "g":
 		return render.LayoutGrid, nil
-	case "focus", "f":
-		return render.LayoutFocus, nil
 	}
-	return 0, fmt.Errorf("unknown --layout %q (expected horizontal|vertical|grid|focus)", s)
+	return 0, fmt.Errorf("unknown --layout %q (expected horizontal|vertical|grid)", s)
 }
 
 func parseWeekStart(s string) (time.Weekday, error) {

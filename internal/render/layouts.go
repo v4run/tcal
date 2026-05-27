@@ -23,8 +23,6 @@ func RenderLayout(layout Layout, months []calendar.Month, today time.Time, opts 
 		return joinVertical(blocks)
 	case LayoutGrid:
 		return joinGrid(blocks, 3)
-	case LayoutFocus:
-		return joinHorizontal(blocks)
 	default:
 		return joinVertical(blocks)
 	}

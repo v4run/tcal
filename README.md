@@ -1,6 +1,6 @@
 # tcal
 
-A live terminal calendar widget with a block-digit clock and four multi-month layouts. Also runs as a one-shot static renderer for piping or printing.
+A live terminal calendar widget with a block-digit clock and three multi-month layouts. Also runs as a one-shot static renderer for piping or printing.
 
 ## Install
 
@@ -19,11 +19,11 @@ go build -o tcal ./cmd/tcal
 ## Quick start
 
 ```
-tcal                          # live focus layout, block clock, centered in terminal
+tcal                          # live horizontal layout, block clock, centered in terminal
 tcal --layout grid            # full-year wallchart
-tcal --layout horizontal      # 3 months in a row
+tcal --layout vertical        # 3 months stacked
 tcal --print --layout grid --date 2026-04 > year.txt
-tcal --print --layout focus | lpr
+tcal --print | lpr
 ```
 
 ## Keys (live mode)
@@ -34,7 +34,7 @@ tcal --print --layout focus | lpr
 | l / →           | Next month                      |
 | j / ↓           | Previous year                   |
 | k / ↑           | Next year                       |
-| 1 / 2 / 3 / 4   | Layout: horizontal / vertical / grid / focus |
+| 1 / 2 / 3       | Layout: horizontal / vertical / grid         |
 | t               | Jump to today                   |
 | q / Ctrl-C      | Quit                            |
 
@@ -42,10 +42,10 @@ tcal --print --layout focus | lpr
 
 | Flag             | Default        | Notes                                      |
 |------------------|----------------|--------------------------------------------|
-| `--layout`       | `focus`        | `horizontal \| vertical \| grid \| focus`  |
+| `--layout`       | `horizontal`   | `horizontal \| vertical \| grid`           |
 | `--date`         | today          | `YYYY-MM` or `YYYY-MM-DD`                  |
 | `--year`         | (anchor year)  | shorthand for `--date=YYYY-01`             |
-| `--months`       | layout default | per-layout: 3 / 3 / 12 / 3                 |
+| `--months`       | layout default | per-layout: 3 / 3 / 12                     |
 | `--week-start`   | `sun`          | `sun \| mon`                               |
 | `--highlight`    | `combined`     | `combined \| reverse \| bracket \| color \| none` |
 | `--no-color`     | off            | also honors `NO_COLOR`                     |
@@ -58,7 +58,7 @@ tcal --print --layout focus | lpr
 
 After any change to layout/centering code, run through:
 
-- [ ] `tcal` — focus layout, clock ticks, terminal resize re-centers.
+- [ ] `tcal` — horizontal layout, clock ticks, terminal resize re-centers.
 - [ ] `tcal --layout grid` — 12-month wallchart fits in a standard terminal.
 - [ ] `tcal --print --layout grid --date 2026-01 > /tmp/y.txt && cat /tmp/y.txt` — clean static output.
 - [ ] `NO_COLOR=1 tcal` — combined highlight degrades to bracket-only; no ANSI escapes.
