@@ -1,0 +1,6 @@
+.superpowers/
+tcal
+/tcal
+*.test
+*.out
+.DS_Store
