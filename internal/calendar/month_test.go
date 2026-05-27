@@ -35,6 +35,14 @@ func TestBuildMonths_AprilCount3_SundayStart(t *testing.T) {
 		t.Errorf("week 0 col 2 (leading padding): got day=%d inMonth=%v, want day=31 inMonth=false",
 			w0[2].Date.Day(), w0[2].InMonth)
 	}
+
+	// Verify month sequencing: got[1] = May 2026, got[2] = June 2026.
+	if got[1].Month != time.May || got[1].Year != 2026 {
+		t.Errorf("second month: got %d-%s, want 2026-May", got[1].Year, got[1].Month)
+	}
+	if got[2].Month != time.June || got[2].Year != 2026 {
+		t.Errorf("third month: got %d-%s, want 2026-June", got[2].Year, got[2].Month)
+	}
 }
 
 func TestBuildMonths_LeapYearFebruary(t *testing.T) {
@@ -53,5 +61,23 @@ func TestBuildMonths_LeapYearFebruary(t *testing.T) {
 	}
 	if !found {
 		t.Error("Feb 29 2024 not found in grid")
+	}
+
+	// Grid must always have exactly 6 weeks.
+	if len(feb.Weeks) != 6 {
+		t.Errorf("got %d weeks, want 6", len(feb.Weeks))
+	}
+
+	// Feb 28 2024 must appear in the grid with InMonth=true.
+	var foundFeb28 bool
+	for _, w := range feb.Weeks {
+		for _, d := range w {
+			if d.InMonth && d.Date.Day() == 28 && d.Date.Month() == time.February {
+				foundFeb28 = true
+			}
+		}
+	}
+	if !foundFeb28 {
+		t.Error("Feb 28 2024 not found in grid with InMonth=true")
 	}
 }

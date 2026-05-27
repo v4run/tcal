@@ -18,6 +18,9 @@ type Month struct {
 // BuildMonths returns count consecutive Month values starting at start's month.
 // start may be any day in the first month; only the year/month are read.
 func BuildMonths(start time.Time, count int, weekStart time.Weekday) []Month {
+	if count <= 0 {
+		return nil
+	}
 	out := make([]Month, 0, count)
 	cursor := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, start.Location())
 	for i := 0; i < count; i++ {
@@ -38,7 +41,7 @@ func buildOne(first time.Time, weekStart time.Weekday) Month {
 		for c := 0; c < 7; c++ {
 			row[c] = Day{
 				Date:    cursor,
-				InMonth: cursor.Month() == mon && cursor.Year() == year,
+				InMonth: cursor.Month() == mon,
 			}
 			cursor = cursor.AddDate(0, 0, 1)
 		}

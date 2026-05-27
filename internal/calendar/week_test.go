@@ -18,6 +18,7 @@ func TestWeekdayIndex(t *testing.T) {
 		{"monday-start: Monday", time.Monday, time.Monday, 0},
 		{"monday-start: Sunday", time.Sunday, time.Monday, 6},
 		{"monday-start: Wednesday", time.Wednesday, time.Monday, 2},
+		{"saturday-start: Saturday", time.Saturday, time.Saturday, 0},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
