@@ -21,7 +21,6 @@ go build -o tcal ./cmd/tcal
 ```
 tcal                          # live horizontal layout, block clock, centered in terminal
 tcal --layout grid            # full-year wallchart
-tcal --layout vertical        # 3 months stacked
 tcal --print --layout grid --date 2026-04 > year.txt
 tcal --print | lpr
 ```
@@ -34,7 +33,7 @@ tcal --print | lpr
 | l / →           | Next month                      |
 | j / ↓           | Previous year                   |
 | k / ↑           | Next year                       |
-| 1 / 2 / 3       | Layout: horizontal / vertical / grid         |
+| 1 / 2           | Layout: horizontal / grid                    |
 | t               | Jump to today                   |
 | q / Ctrl-C      | Quit                            |
 
@@ -42,10 +41,10 @@ tcal --print | lpr
 
 | Flag             | Default        | Notes                                      |
 |------------------|----------------|--------------------------------------------|
-| `--layout`       | `horizontal`   | `horizontal \| vertical \| grid`           |
+| `--layout`       | `horizontal`   | `horizontal \| grid`                       |
 | `--date`         | today          | `YYYY-MM` or `YYYY-MM-DD`                  |
 | `--year`         | (anchor year)  | shorthand for `--date=YYYY-01`             |
-| `--months`       | layout default | per-layout: 3 / 3 / 12                     |
+| `--months`       | layout default | per-layout: 3 / 12                         |
 | `--week-start`   | `sun`          | `sun \| mon`                               |
 | `--highlight`    | `combined`     | `combined \| reverse \| bracket \| color \| none` |
 | `--no-color`     | off            | also honors `NO_COLOR`                     |

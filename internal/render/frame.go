@@ -19,7 +19,7 @@ func layoutStart(layout Layout, anchorYear int, anchorMonth int) (int, int) {
 	if layout == LayoutGrid {
 		return anchorYear, 1
 	}
-	// horizontal / vertical: anchor - 1 month
+	// horizontal: anchor - 1 month
 	y, m := anchorYear, anchorMonth-1
 	if m < 1 {
 		m = 12
@@ -37,8 +37,8 @@ func minWidthFor(layout Layout, months int) int {
 	case LayoutGrid:
 		cols := 3
 		return cols*grid + (cols-1)*gutter
-	default: // vertical
-		return grid
+	default:
+		return months*grid + (months-1)*gutter
 	}
 }
 

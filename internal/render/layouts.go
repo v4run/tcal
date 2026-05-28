@@ -19,12 +19,10 @@ func RenderLayout(layout Layout, months []calendar.Month, today time.Time, opts 
 	switch layout {
 	case LayoutHorizontal:
 		return joinHorizontal(blocks)
-	case LayoutVertical:
-		return joinVertical(blocks)
 	case LayoutGrid:
 		return joinGrid(blocks, 3)
 	default:
-		return joinVertical(blocks)
+		return joinHorizontal(blocks)
 	}
 }
 
@@ -66,18 +64,4 @@ func joinHorizontal(blocks []string) string {
 		withGutters = append(withGutters, b)
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, withGutters...)
-}
-
-func joinVertical(blocks []string) string {
-	if len(blocks) == 0 {
-		return ""
-	}
-	withGutters := make([]string, 0, 2*len(blocks)-1)
-	for i, b := range blocks {
-		if i > 0 {
-			withGutters = append(withGutters, "")
-		}
-		withGutters = append(withGutters, b)
-	}
-	return lipgloss.JoinVertical(lipgloss.Left, withGutters...)
 }

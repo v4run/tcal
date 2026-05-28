@@ -85,8 +85,7 @@ func TestUpdate_LayoutKeysSwitchLayout(t *testing.T) {
 		want render.Layout
 	}{
 		{'1', render.LayoutHorizontal},
-		{'2', render.LayoutVertical},
-		{'3', render.LayoutGrid},
+		{'2', render.LayoutGrid},
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.key), func(t *testing.T) {

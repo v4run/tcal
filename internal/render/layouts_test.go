@@ -35,19 +35,6 @@ func TestLayout_Horizontal_3Months(t *testing.T) {
 	t.Error("no line is wide enough for 3 horizontal months")
 }
 
-func TestLayout_Vertical_3Months(t *testing.T) {
-	o := opts()
-	months := calendar.BuildMonths(anchorApril2026().AddDate(0, -1, 0), 3, o.WeekStart)
-	got := RenderLayout(LayoutVertical, months, time.Time{}, o)
-	golden.Assert(t, "testdata/layout_vertical_3.golden", got)
-	// Smoke check: every line should be <= one grid width (20).
-	for _, ln := range strings.Split(got, "\n") {
-		if visibleWidth(ln) > 22 { // grid 20 + small slop
-			t.Errorf("vertical layout line too wide: %q", ln)
-		}
-	}
-}
-
 func TestLayout_Grid_12Months(t *testing.T) {
 	o := opts()
 	jan := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

@@ -68,8 +68,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "1":
 		m.state.Layout = render.LayoutHorizontal
 	case "2":
-		m.state.Layout = render.LayoutVertical
-	case "3":
 		m.state.Layout = render.LayoutGrid
 	}
 	return m, nil
