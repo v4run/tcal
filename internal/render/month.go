@@ -61,10 +61,18 @@ func RenderMonth(m calendar.Month, today time.Time, opts Options) string {
 			text := fmt.Sprintf("%2d", d.Date.Day())
 			isToday := hasToday && sameYMD(d.Date, today)
 			if isToday {
-				bare := strings.TrimLeft(text, " ")
-				cells[c] = Highlight(bare, opts.Highlight)
 				if opts.Highlight&HighlightBracket != 0 {
+					// Brackets supply their own boundaries, so drop the "%2d"
+					// padding and signal the join to skip the next separator.
+					cells[c] = Highlight(strings.TrimLeft(text, " "), opts.Highlight)
 					bracketedAt = c
+				} else {
+					// Highlight only the digit(s); keep any "%2d" pad space
+					// plain so the cell still spans two columns but the
+					// styled block stays tight to the number.
+					bare := strings.TrimLeft(text, " ")
+					pad := text[:len(text)-len(bare)]
+					cells[c] = pad + Highlight(bare, opts.Highlight)
 				}
 			} else {
 				cells[c] = text
