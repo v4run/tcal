@@ -8,8 +8,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/v4run/tcal/internal/dino"
 	"github.com/v4run/tcal/internal/life"
+	"github.com/v4run/tcal/internal/runner"
 )
 
 // Background selects the ambient animation drawn behind the calendar.
@@ -18,7 +18,7 @@ type Background int
 const (
 	BackgroundNone Background = iota
 	BackgroundLife
-	BackgroundDino
+	BackgroundContainer
 )
 
 const (
@@ -48,8 +48,8 @@ func newScene(bg Background, w, h int) scene {
 		s := &lifeScene{rng: rng}
 		s.Resize(w, h)
 		return s
-	case BackgroundDino:
-		return &dinoScene{s: dino.New(w, h, rng), w: w, h: h}
+	case BackgroundContainer:
+		return &runnerScene{s: runner.New(w, h, rng), w: w, h: h}
 	}
 	return nil
 }
@@ -75,23 +75,23 @@ func (l *lifeScene) Glyph(x, y int, _ box) rune {
 	return 0
 }
 
-// dinoScene runs the dino along the bottom of the screen, hiding it
-// entirely when the strip would overlap the calendar.
-type dinoScene struct {
-	s    *dino.Scene
+// runnerScene runs the container along the bottom of the screen, hiding
+// it entirely when the strip would overlap the calendar.
+type runnerScene struct {
+	s    *runner.Scene
 	w, h int
 }
 
-func (d *dinoScene) Resize(w, h int) {
+func (d *runnerScene) Resize(w, h int) {
 	d.w, d.h = w, h
 	d.s.Resize(w, h)
 }
 
-func (d *dinoScene) Tick()                   { d.s.Tick() }
-func (d *dinoScene) Interval() time.Duration { return 40 * time.Millisecond }
+func (d *runnerScene) Tick()                   { d.s.Tick() }
+func (d *runnerScene) Interval() time.Duration { return 40 * time.Millisecond }
 
-func (d *dinoScene) Glyph(x, y int, b box) rune {
-	if d.w < dino.MinWidth || b.y1 >= d.h-dino.Height {
+func (d *runnerScene) Glyph(x, y int, b box) rune {
+	if d.w < runner.MinWidth || b.y1 >= d.h-runner.Height {
 		return 0
 	}
 	return d.s.Glyph(x, y)

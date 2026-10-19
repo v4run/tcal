@@ -1,4 +1,4 @@
-package dino
+package runner
 
 import (
 	"math/rand/v2"
@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestDinoClearsEveryBushShape(t *testing.T) {
+func TestRunnerClearsEveryBushShape(t *testing.T) {
 	for shape := range bushShapes {
 		s := New(80, 20, rand.New(rand.NewPCG(1, 2)))
 		s.nextX = 1 << 30 // no random spawns
@@ -15,7 +15,7 @@ func TestDinoClearsEveryBushShape(t *testing.T) {
 		for i := 0; i < 80; i++ {
 			s.Tick()
 			if s.collides() {
-				t.Fatalf("shape %d: dino hit bush at tick %d", shape, i)
+				t.Fatalf("shape %d: sprite hit bush at tick %d", shape, i)
 			}
 			if len(s.bushes) == 0 {
 				cleared = true
@@ -28,7 +28,7 @@ func TestDinoClearsEveryBushShape(t *testing.T) {
 	}
 }
 
-func TestDinoNeverCollidesOverLongRun(t *testing.T) {
+func TestRunnerNeverCollidesOverLongRun(t *testing.T) {
 	for seed := uint64(0); seed < 20; seed++ {
 		s := New(120, 30, rand.New(rand.NewPCG(seed, seed)))
 		jumps := 0
@@ -42,7 +42,7 @@ func TestDinoNeverCollidesOverLongRun(t *testing.T) {
 			}
 		}
 		if jumps == 0 {
-			t.Fatalf("seed %d: dino never jumped", seed)
+			t.Fatalf("seed %d: sprite never jumped", seed)
 		}
 	}
 }
@@ -87,14 +87,12 @@ func TestNew_ZeroSizeIsSafe(t *testing.T) {
 }
 
 func TestSpriteDimensions(t *testing.T) {
-	for f, frame := range sprites {
-		if len(frame) != spriteH {
-			t.Fatalf("frame %d has %d rows, want %d", f, len(frame), spriteH)
-		}
-		for r, row := range frame {
-			if len(row) != spriteW {
-				t.Fatalf("frame %d row %d has width %d, want %d", f, r, len(row), spriteW)
-			}
+	if len(sprite) != spriteH {
+		t.Fatalf("sprite has %d rows, want %d", len(sprite), spriteH)
+	}
+	for r, row := range sprite {
+		if n := len([]rune(row)); n != spriteW {
+			t.Fatalf("sprite row %d has width %d, want %d", r, n, spriteW)
 		}
 	}
 	if m := slices.Max(jumpArc); m != maxJump {
