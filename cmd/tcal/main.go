@@ -166,14 +166,14 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	}
 	slices.Sort(keys)
 	for _, k := range keys {
-		if setOnCLI[k] {
-			continue
-		}
 		v := cfg.Flags[k]
 		if check, ok := validators[k]; ok {
 			if err := check(v); err != nil {
 				return runConfig{}, fmt.Errorf("config %s: %s = %s: %w", cfg.Path, k, v, err)
 			}
+		}
+		if setOnCLI[k] {
+			continue
 		}
 		if err := fs.Set(k, v); err != nil {
 			return runConfig{}, fmt.Errorf("config %s: %s = %s: %w", cfg.Path, k, v, err)
@@ -183,12 +183,15 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	bgOpts := tui.BackgroundOptions{Events: *showEvents}
 	if cfg.RandomPool != nil {
 		known := tui.Backgrounds()
-		for _, name := range cfg.RandomPool {
+		pool := make([]string, len(cfg.RandomPool))
+		for i, name := range cfg.RandomPool {
+			name = strings.ToLower(name)
+			pool[i] = name
 			if !slices.Contains(known, name) {
 				return runConfig{}, fmt.Errorf("config %s: random.backgrounds: unknown background %q (expected %s)", cfg.Path, name, strings.Join(known, "|"))
 			}
 		}
-		bgOpts.RandomPool = cfg.RandomPool
+		bgOpts.RandomPool = pool
 	}
 	if cfg.Birthday != "" {
 		md, err := events.ParseBirthday(cfg.Birthday)

@@ -212,3 +212,22 @@ func TestConfigure_BgTime(t *testing.T) {
 		t.Errorf("got %v %v", rc.bgTime, err)
 	}
 }
+
+func TestConfigure_OverriddenValueStillValidated(t *testing.T) {
+	p := writeCfg(t, "layout = \"gird\"\n")
+	_, err := configure([]string{"--config", p, "--layout", "grid"}, io.Discard, cfgNow)
+	if err == nil || !strings.Contains(err.Error(), "gird") {
+		t.Fatalf("got %v, want error naming the bad config value", err)
+	}
+}
+
+func TestConfigure_RandomPoolCaseInsensitive(t *testing.T) {
+	p := writeCfg(t, "[random]\nbackgrounds = [\"Sky\"]\n")
+	rc, err := configure([]string{"--config", p}, io.Discard, cfgNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(rc.bgOpts.RandomPool, []string{"sky"}) {
+		t.Errorf("pool = %v", rc.bgOpts.RandomPool)
+	}
+}
