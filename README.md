@@ -54,7 +54,9 @@ tcal --print | lpr
 | `--clock-style`  | `block`        | `block \| inline \| boxed`                 |
 | `--bg`           | `none`         | `none`, `random`, or a name from [Backgrounds](#backgrounds) (live mode only) |
 | `--bg-color`     | `true`         | tint the background; `false` draws it dim in the foreground color |
-| `--bg-time`      | now            | time seen by `sky`/`hourglass`: `HH:MM`, `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM` |
+| `--bg-time`      | now            | time seen by `sky`/`hourglass` and by [events](#events): `HH:MM`, `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM` |
+| `--events`       | `true`         | show holiday scenes in the `seasons` background; `--events=false` turns them off |
+| `--config`       | see [Config file](#config-file) | read this config file instead of the default; an error if it is missing |
 
 ## Backgrounds
 
@@ -90,6 +92,77 @@ tcal --bg hourglass --bg-time 10:55         # nearly full hourglass
 
 `seasons` follows the month on screen — page with `h`/`l` to change the season.
 
+## Events
+
+On special days the `seasons` background adds a small, dim holiday scene beside the calendar; the season's particles keep running. Only one event shows at a time.
+
+| Event | Shown | Scene |
+|-------|-------|-------|
+| New Year | Dec 31 from 18:00 through Jan 1 | fireworks in the top margin, busiest around midnight |
+| Makar Sankranti / Pongal | Makar Sankranti and the day after | kites with tails and a flyer, left column |
+| Lunar New Year | the day and the 2 days after | red lanterns swaying along the top edge |
+| Valentine's Day | Feb 14 | ASCII hearts rising up the right column |
+| Holi | the evening before (from 18:00) and the day of colours | bursts of colored powder, right column |
+| Vishu | the day | a lit nilavilakku lamp with falling konna flowers, bottom-right |
+| Eid al-Fitr | the day, plus or minus 1 day | a crescent moon and hanging lanterns, top-right |
+| Independence Day (India) | Aug 15 | a tricolor flag on a pole, top-left |
+| Onam | Atham through Thiruvonam | a pookalam in the bottom-left corner that gains a ring each day and is complete on Thiruvonam |
+| Halloween | Oct 31 | a jack-o'-lantern and bats, bottom-left column |
+| Diwali | Lakshmi Puja day, plus or minus 2 days | a row of flickering diyas along the bottom, with small bursts above |
+| Christmas | Dec 1 through Dec 26 | a tree with twinkling lights, bottom-right corner |
+| Birthday | the `birthday` in your [config](#config-file) | a cake with candles and confetti, bottom-right |
+
+Each scene sits in one side column, corner or edge band beside the calendar and hides itself entirely when it would not fit without touching the calendar, which typically happens below about 100 columns wide.
+
+Events follow the real date, while seasons follow the month on screen. To preview one, shift the date with `--bg-time`:
+
+```
+tcal --bg seasons --bg-time 2026-12-25      # Christmas
+tcal --bg seasons --bg-time 2026-10-31      # Halloween
+tcal --bg seasons --bg-time 2026-12-31T23:30   # New Year, near midnight
+```
+
+If two events overlap, your birthday wins; otherwise the one with the shorter window does. With `--bg random`, a day with an active event picks `seasons` (if it is in the random pool) so the event is seen. Turn events off with `--events=false` or `events = false` in the config; `seasons` then behaves as it always did.
+
+Fixed-date events are computed. Moving dates (Sankranti, Lunar New Year, Holi, Vishu, Eid, Onam, Diwali) come from a lookup table of published calendars covering 2026-2040, with a few documented gaps: Vishu 2032-2040, Onam 2031-2040, Eid 2037 and Diwali 2037. In a gap year that event does not show; a missing date is preferred to a wrong one. Sources are cited in `internal/events/dates.go`.
+
+## Config file
+
+An optional TOML file sets defaults for the flags, your birthday and the pool `--bg random` picks from. It lives at `$XDG_CONFIG_HOME/tcal/config.toml`, falling back to `~/.config/tcal/config.toml` on every platform (macOS included). `--config <path>` reads a different file. With no file, tcal behaves exactly as it does without this feature.
+
+```toml
+# ~/.config/tcal/config.toml — every key is optional
+
+# Defaults for command-line flags (flags still win)
+layout      = "grid"        # horizontal | grid
+week-start  = "mon"         # sun | mon
+highlight   = "combined"    # combined | reverse | bracket | color | none
+clock-style = "block"       # block | inline | boxed
+with-clock  = true
+no-color    = false
+bg          = "random"      # none | random | <background name>
+bg-color    = true
+events      = true
+
+# Personal
+birthday = "05-17"          # MM-DD (YYYY-MM-DD also accepted; the year is ignored)
+
+[random]
+# Backgrounds --bg random may pick. Omit to allow all of them.
+backgrounds = ["sky", "seasons", "aquarium", "harbor", "train", "life"]
+```
+
+`months` and `width` can be set too. Precedence is flag on the command line, then config value, then built-in default.
+
+Config values go through the same validation as the flags. A bad value, an unknown key, an unknown name in `random.backgrounds`, an empty list or a missing `--config` file is an error naming the file, and tcal exits non-zero:
+
+```
+$ tcal --config bad.toml          # layout = "diagonal"
+tcal: config bad.toml: layout = diagonal: unknown --layout "diagonal" (expected horizontal|grid)
+```
+
+These flags cannot be set in the config: `--date`, `--year`, `--print`, `--bg-time`, `--version` and `--config`. A missing file at the default location is not an error.
+
 ## Manual smoke checklist
 
 After any change to layout/centering code, run through:
@@ -105,6 +178,9 @@ After any change to layout/centering code, run through:
 - [ ] `tcal --bg sky --bg-time 22:30` — night sky and moon, while the calendar header shows the real time.
 - [ ] `tcal --bg random` a few times — a different background each launch; none ever draw over the calendar.
 - [ ] `tcal --bg container` in a tall terminal — a shipping container slides along the bottom and hops every bush; shrink the window until the strip would touch the calendar and it disappears.
+- [ ] `tcal --bg seasons --bg-time 2026-12-25` — a Christmas tree with twinkling lights in a corner; `--events=false` removes it.
+- [ ] A config with `bg = "random"` and `[random] backgrounds = ["sky", "life"]` — only those two ever appear; a flag such as `--bg none` overrides the config.
+- [ ] A config with `layout = "diagonal"` — exits non-zero with a one-line error naming the file, key and value.
 - [ ] `tcal --date 2026-13` — exits non-zero with a one-line error.
 
 ## License
