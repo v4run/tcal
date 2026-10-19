@@ -33,18 +33,27 @@ var backgrounds = map[string]func(w, h int, rng *rand.Rand) scene.Scene{
 	},
 }
 
-// Backgrounds returns the names accepted by WithBackground, sorted.
+// Random is the background name that picks one of Backgrounds at startup.
+const Random = "random"
+
+// Backgrounds returns the registered background names, sorted. WithBackground
+// also accepts Random.
 func Backgrounds() []string {
 	return slices.Sorted(maps.Keys(backgrounds))
 }
 
 func newScene(name string, w, h int) scene.Scene {
+	seed := uint64(time.Now().UnixNano())
+	rng := rand.New(rand.NewPCG(seed, seed>>32))
+	if name == Random {
+		names := Backgrounds()
+		name = names[rng.IntN(len(names))]
+	}
 	ctor, ok := backgrounds[name]
 	if !ok {
 		return nil
 	}
-	seed := uint64(time.Now().UnixNano())
-	return ctor(w, h, rand.New(rand.NewPCG(seed, seed>>32)))
+	return ctor(w, h, rng)
 }
 
 // lifeScene runs Game of Life over the whole screen; a resize reseeds it.

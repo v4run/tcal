@@ -59,7 +59,7 @@ func run(args []string, stdout, stderr *os.File) error {
 	width := fs.Int("width", 0, "terminal width (print mode only)")
 	withClock := fs.Bool("with-clock", false, "include block clock in print mode")
 	clockStyle := fs.String("clock-style", "block", "block|inline|boxed")
-	bgS := fs.String("bg", "none", "ambient background in live mode: none|"+strings.Join(tui.Backgrounds(), "|"))
+	bgS := fs.String("bg", "none", "ambient background in live mode: none|random|"+strings.Join(tui.Backgrounds(), "|"))
 	showVersion := fs.Bool("version", false, "print version and exit")
 
 	if err := fs.Parse(args); err != nil {
@@ -209,10 +209,10 @@ func parseBackground(s string) (string, error) {
 	if s == "none" {
 		return "", nil
 	}
-	if slices.Contains(tui.Backgrounds(), s) {
+	if s == tui.Random || slices.Contains(tui.Backgrounds(), s) {
 		return s, nil
 	}
-	return "", fmt.Errorf("unknown --bg %q (expected none|%s)", s, strings.Join(tui.Backgrounds(), "|"))
+	return "", fmt.Errorf("unknown --bg %q (expected none|random|%s)", s, strings.Join(tui.Backgrounds(), "|"))
 }
 
 func resolveWidth(flagW int, f *os.File) int {

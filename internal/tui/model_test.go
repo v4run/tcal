@@ -153,3 +153,17 @@ func TestView_WithoutBackgroundMatchesFrame(t *testing.T) {
 		t.Error("View differs from render.Frame with no background")
 	}
 }
+
+func TestWithBackground_RandomPicksARegisteredScene(t *testing.T) {
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground(Random)
+	if m.bg == nil {
+		t.Fatal("random background left the background off")
+	}
+}
+
+func TestWithBackground_UnknownLeavesBackgroundOff(t *testing.T) {
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground("nope")
+	if m.bg != nil {
+		t.Fatal("unknown background name enabled a scene")
+	}
+}
