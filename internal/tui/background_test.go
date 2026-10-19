@@ -361,3 +361,18 @@ func TestAllBackgrounds_ColorWellFormed(t *testing.T) {
 		}
 	}
 }
+
+func TestSeasons_EventSwitchesAtMidnight(t *testing.T) {
+	m := localModel(100, 40)
+	m.state.Now = time.Date(2026, time.November, 30, 23, 59, 0, 0, time.Local)
+	m = m.WithBackground("seasons", BackgroundOptions{Events: true})
+	sc := m.bg.(*seasons.Scene)
+	if k, ok := sc.Event(); ok {
+		t.Fatalf("Nov 30 23:59: Event() = %v, true; want none", k)
+	}
+	next, _ := m.Update(tickMsg(time.Date(2026, time.December, 1, 0, 0, 1, 0, time.Local)))
+	m = next.(Model)
+	if k, ok := m.bg.(*seasons.Scene).Event(); !ok || k != events.Christmas {
+		t.Errorf("Dec 1 00:00:01: Event() = %v, %v; want christmas, true", k, ok)
+	}
+}

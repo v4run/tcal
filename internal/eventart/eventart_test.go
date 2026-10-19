@@ -2,7 +2,6 @@ package eventart
 
 import (
 	"math/rand/v2"
-	"sort"
 	"testing"
 	"time"
 
@@ -442,26 +441,52 @@ func TestHalloween_BatsFlap(t *testing.T) {
 	a := newArt(t, events.Halloween)
 	a.Resize(120, 40)
 	a.Tick()
-	// Bat glyphs, ignoring where the bats are.
-	bats := func() string {
-		s := []rune(snapshot(a, func(_ rune, c scene.Color) bool { return c == scene.Default }))
-		sort.Slice(s, func(i, j int) bool { return s[i] < s[j] })
-		return string(s)
+	// Per-cell bat glyphs (Default-colored cells only; the pumpkin is
+	// yellow). Comparing cells, not sorted runes, so two bats in opposite
+	// wing phase cannot cancel out.
+	bd := a.Bounds()
+	bats := func() map[[2]int]rune {
+		m := map[[2]int]rune{}
+		for y := bd.Y0; y < bd.Y0+bd.H; y++ {
+			for x := bd.X0; x < bd.X0+bd.W; x++ {
+				if r, c := a.Cell(x, y, emptyBox); r != 0 && c == scene.Default {
+					m[[2]int{x, y}] = r
+				}
+			}
+		}
+		return m
 	}
 	first := bats()
-	if first == "" {
+	if len(first) == 0 {
 		t.Fatal("no bats drawn")
 	}
 	if p := snapshot(a, func(_ rune, c scene.Color) bool { return c == scene.Yellow }); p == "" {
 		t.Fatal("no pumpkin drawn")
 	}
-	for i := 0; i < 10; i++ {
+	seen := map[rune]bool{}
+	for _, r := range first {
+		seen[r] = true
+	}
+	changed := false
+	for i := 0; i < 12; i++ {
 		a.Tick()
-		if bats() != first {
-			return
+		cur := bats()
+		for pos, r := range cur {
+			seen[r] = true
+			if first[pos] != r {
+				changed = true
+			}
+		}
+		if len(cur) != len(first) {
+			changed = true
 		}
 	}
-	t.Error("no bat flapped within 10 ticks")
+	if !changed {
+		t.Error("no bat cell changed within 12 ticks")
+	}
+	if !seen['^'] || !seen['-'] {
+		t.Errorf("wings never alternated between up and level; runes seen: %v", seen)
+	}
 }
 
 func TestBirthday_CandlesFlicker(t *testing.T) {

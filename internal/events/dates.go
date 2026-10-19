@@ -48,7 +48,7 @@ var moving = map[Kind]map[int]span{
 	//     2027 Jan 15 (Thiruvananthapuram), 2028 Jan 15, 2029 Jan 14.
 	//   - dekhopanchang, https://dekhopanchang.com/en/festivals/makar-sankranti/2030:
 	//     2030 Jan 14; vedpanchang, https://vedpanchang.com/festivals/makar-sankranti-2034:
-	//     2034 Jan 14 (both cited in review).
+	//     2034 Jan 14.
 	//
 	// 2030-2040 rest on AstroSage's times (plus the two checks above).
 	//
@@ -114,7 +114,9 @@ var moving = map[Kind]map[int]span{
 	// Disagreement: for 2027 drikpanchang gives Mar 22 but AstroSage and the
 	// central-government gazetted list give Mar 23; we use Mar 23 as the date
 	// most widely observed in India. 2032-2040 rest on AstroSage, later
-	// confirmed in review against qppstudio and vedpanchang.
+	// cross-checked against qppstudio (Holi/Phagwa, the holi-phagwa page under
+	// https://www.qppstudio.net/publicholidays/) and vedpanchang
+	// (https://vedpanchang.com/festivals/holi-YYYY).
 	Holi: {
 		2026: on(time.March, 4),
 		2027: on(time.March, 23),
@@ -231,8 +233,10 @@ var moving = map[Kind]map[int]span{
 	//     (New Delhi), all years 2026-2040; agrees with drikpanchang 2026-2033.
 	//   - DoPT gazetted holidays: 2026 Nov 8, 2027 Oct 29 (agree).
 	//
-	// 2034-2040 rest on AstroSage, later confirmed in review against
-	// qppstudio, vedpanchang and AstroSage's Amavasya timings.
+	// 2034-2040 rest on AstroSage, later cross-checked against
+	// qppstudio (https://www.qppstudio.net/publicholidays/), vedpanchang
+	// (https://vedpanchang.com/festivals/diwali-YYYY) and AstroSage's Amavasya
+	// timings.
 	//
 	// 2037 is omitted: AstroSage gives Nov 7, but its Amavasya runs Nov 6 20:54
 	// to Nov 7 17:34, leaving almost no pradosh on either day, and vedpanchang
