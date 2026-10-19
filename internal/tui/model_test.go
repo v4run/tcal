@@ -128,3 +128,26 @@ func TestUpdate_TickAdvancesNow(t *testing.T) {
 		t.Errorf("got %v, want %v", got, later)
 	}
 }
+
+func TestWithLife_ResizeRebuildsGrid(t *testing.T) {
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithLife()
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	g := next.(Model).life
+	if g.Width() != 120 || g.Height() != 40 {
+		t.Errorf("grid is %dx%d, want 120x40", g.Width(), g.Height())
+	}
+}
+
+func TestUpdate_LifeTickRearms(t *testing.T) {
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithLife()
+	if _, cmd := m.Update(lifeTickMsg{}); cmd == nil {
+		t.Error("expected lifeTickMsg to schedule the next tick")
+	}
+}
+
+func TestView_WithoutLifeMatchesFrame(t *testing.T) {
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC))
+	if got, want := m.View(), render.Frame(m.state, m.opts); got != want {
+		t.Error("View differs from render.Frame with life disabled")
+	}
+}

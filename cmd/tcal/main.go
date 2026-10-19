@@ -58,6 +58,7 @@ func run(args []string, stdout, stderr *os.File) error {
 	width := fs.Int("width", 0, "terminal width (print mode only)")
 	withClock := fs.Bool("with-clock", false, "include block clock in print mode")
 	clockStyle := fs.String("clock-style", "block", "block|inline|boxed")
+	lifeBG := fs.Bool("life", false, "Game of Life ambient background (live mode only)")
 	showVersion := fs.Bool("version", false, "print version and exit")
 
 	if err := fs.Parse(args); err != nil {
@@ -81,6 +82,9 @@ func run(args []string, stdout, stderr *os.File) error {
 
 	state.Width, state.Height = currentTermSize(stdout)
 	model := tui.New(state, opts)
+	if *lifeBG {
+		model = model.WithLife()
+	}
 	prog := tea.NewProgram(model, tea.WithAltScreen())
 	_, err = prog.Run()
 	return err

@@ -2,10 +2,12 @@
 package tui
 
 import (
+	"math/rand/v2"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/v4run/tcal/internal/life"
 	"github.com/v4run/tcal/internal/render"
 )
 
@@ -13,6 +15,7 @@ import (
 type Model struct {
 	state render.State
 	opts  render.Options
+	life  *life.Grid // nil unless the Game of Life background is enabled
 }
 
 // New returns a Model initialized with the given state and options. Caller
@@ -22,6 +25,19 @@ func New(state render.State, opts render.Options) Model {
 	return Model{state: state, opts: opts}
 }
 
+// WithLife enables the Game of Life background, sized to the current state.
+func (m Model) WithLife() Model {
+	m.life = newLife(m.state.Width, m.state.Height)
+	return m
+}
+
+func newLife(w, h int) *life.Grid {
+	seed := uint64(time.Now().UnixNano())
+	g := life.New(w, h, rand.New(rand.NewPCG(seed, seed>>32)))
+	g.Seed()
+	return g
+}
+
 // tickMsg is sent every second to advance the clock.
 type tickMsg time.Time
 
@@ -29,8 +45,20 @@ func tick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
-// Init starts the periodic tick.
+// lifeTickMsg advances the Game of Life background by one generation.
+type lifeTickMsg struct{}
+
+const lifeInterval = 250 * time.Millisecond
+
+func lifeTick() tea.Cmd {
+	return tea.Tick(lifeInterval, func(time.Time) tea.Msg { return lifeTickMsg{} })
+}
+
+// Init starts the periodic ticks.
 func (m Model) Init() tea.Cmd {
+	if m.life != nil {
+		return tea.Batch(tick(), lifeTick())
+	}
 	return tick()
 }
 
@@ -40,10 +68,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.state.Width = msg.Width
 		m.state.Height = msg.Height
+		if m.life != nil {
+			m.life = newLife(msg.Width, msg.Height)
+		}
 		return m, nil
 	case tickMsg:
 		m.state.Now = time.Time(msg)
 		return m, tick()
+	case lifeTickMsg:
+		if m.life == nil {
+			return m, nil
+		}
+		m.life.Tick()
+		return m, lifeTick()
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -75,5 +112,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // View renders the current frame.
 func (m Model) View() string {
-	return render.Frame(m.state, m.opts)
+	out := render.Frame(m.state, m.opts)
+	if m.life != nil {
+		out = overlayLife(out, m.life, m.opts.Color)
+	}
+	return out
 }
