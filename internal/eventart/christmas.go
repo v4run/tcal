@@ -1,7 +1,7 @@
 package eventart
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"time"
 
 	"github.com/v4run/tcal/internal/events"
@@ -43,7 +43,7 @@ func init() {
 		c := &christmas{rng: rng}
 		for y := range c.phase {
 			for x := range c.phase[y] {
-				c.phase[y][x] = rng.Intn(len(lightColors))
+				c.phase[y][x] = rng.IntN(len(lightColors))
 			}
 		}
 		return c

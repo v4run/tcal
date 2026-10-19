@@ -9,7 +9,6 @@ package seasons
 
 import (
 	"math"
-	mrand "math/rand"
 	"math/rand/v2"
 	"time"
 
@@ -142,7 +141,7 @@ func (s *Scene) SetTime(now, shown time.Time) {
 		s.event, s.hasEvent = occ.Kind, ok
 		s.art = nil
 		if ok {
-			s.art = eventart.New(occ.Kind, mrand.New(mrand.NewSource(int64(s.rng.Uint64()))))
+			s.art = eventart.New(occ.Kind, rand.New(rand.NewPCG(s.rng.Uint64(), s.rng.Uint64())))
 		}
 		if s.art != nil {
 			s.art.Resize(s.w, s.h)
