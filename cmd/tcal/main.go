@@ -139,9 +139,12 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	if path == "" {
 		path, mustExist = config.DefaultPath(), false
 	}
-	cfg, err := config.Load(path, mustExist, allowed)
-	if err != nil {
-		return runConfig{}, err
+	cfg := config.Config{Flags: map[string]string{}}
+	if path != "" { // no default path (no home directory): behave as if no file exists
+		var err error
+		if cfg, err = config.Load(path, mustExist, allowed); err != nil {
+			return runConfig{}, err
+		}
 	}
 
 	validators := map[string]func(string) error{

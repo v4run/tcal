@@ -23,12 +23,17 @@ type Config struct {
 }
 
 // DefaultPath returns $XDG_CONFIG_HOME/tcal/config.toml, falling back to
-// ~/.config/tcal/config.toml on every platform.
+// ~/.config/tcal/config.toml on every platform. It returns "" when neither is
+// available, so a relative path never picks up a config from the current
+// directory.
 func DefaultPath() string {
 	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
 		return filepath.Join(x, "tcal", "config.toml")
 	}
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
 	return filepath.Join(home, ".config", "tcal", "config.toml")
 }
 

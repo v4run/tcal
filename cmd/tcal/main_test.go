@@ -57,6 +57,18 @@ func emptyXDG(t *testing.T) {
 
 var cfgNow = time.Date(2026, 10, 19, 9, 15, 0, 0, time.UTC)
 
+func TestConfigure_NoHomeIsNoFile(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", "")
+	rc, err := configure(nil, io.Discard, cfgNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc.bg != "" || !rc.bgOpts.Events || rc.bgOpts.Birthday != nil || rc.bgOpts.RandomPool != nil {
+		t.Errorf("defaults changed: %+v", rc)
+	}
+}
+
 func TestConfigure_NoFileUnchanged(t *testing.T) {
 	emptyXDG(t)
 	rc, err := configure(nil, io.Discard, cfgNow)

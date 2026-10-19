@@ -31,6 +31,14 @@ func TestDefaultPath(t *testing.T) {
 	}
 }
 
+func TestDefaultPath_NoHome(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", "")
+	if got := DefaultPath(); got != "" {
+		t.Errorf("got %q, want empty", got)
+	}
+}
+
 func TestLoad_MissingDefaultIsEmpty(t *testing.T) {
 	c, err := Load(filepath.Join(t.TempDir(), "nope.toml"), false, allowed)
 	if err != nil {
