@@ -13,6 +13,19 @@ import (
 	"github.com/v4run/tcal/internal/life"
 	"github.com/v4run/tcal/internal/runner"
 	"github.com/v4run/tcal/internal/scene"
+	"github.com/v4run/tcal/internal/scenes/ants"
+	"github.com/v4run/tcal/internal/scenes/aquarium"
+	"github.com/v4run/tcal/internal/scenes/automaton"
+	"github.com/v4run/tcal/internal/scenes/flow"
+	"github.com/v4run/tcal/internal/scenes/harbor"
+	"github.com/v4run/tcal/internal/scenes/hourglass"
+	"github.com/v4run/tcal/internal/scenes/langton"
+	"github.com/v4run/tcal/internal/scenes/lava"
+	"github.com/v4run/tcal/internal/scenes/rain"
+	"github.com/v4run/tcal/internal/scenes/seasons"
+	"github.com/v4run/tcal/internal/scenes/sky"
+	"github.com/v4run/tcal/internal/scenes/starfield"
+	"github.com/v4run/tcal/internal/scenes/train"
 )
 
 const (
@@ -31,6 +44,19 @@ var backgrounds = map[string]func(w, h int, rng *rand.Rand) scene.Scene{
 	"container": func(w, h int, rng *rand.Rand) scene.Scene {
 		return &runnerScene{s: runner.New(w, h, rng), w: w, h: h}
 	},
+	"rain":      func(w, h int, rng *rand.Rand) scene.Scene { return rain.New(w, h, rng) },
+	"starfield": func(w, h int, rng *rand.Rand) scene.Scene { return starfield.New(w, h, rng) },
+	"aquarium":  func(w, h int, rng *rand.Rand) scene.Scene { return aquarium.New(w, h, rng) },
+	"lava":      func(w, h int, rng *rand.Rand) scene.Scene { return lava.New(w, h, rng) },
+	"flow":      func(w, h int, rng *rand.Rand) scene.Scene { return flow.New(w, h, rng) },
+	"langton":   func(w, h int, rng *rand.Rand) scene.Scene { return langton.New(w, h, rng) },
+	"automaton": func(w, h int, rng *rand.Rand) scene.Scene { return automaton.New(w, h, rng) },
+	"sky":       func(w, h int, rng *rand.Rand) scene.Scene { return sky.New(w, h, rng) },
+	"seasons":   func(w, h int, rng *rand.Rand) scene.Scene { return seasons.New(w, h, rng) },
+	"hourglass": func(w, h int, rng *rand.Rand) scene.Scene { return hourglass.New(w, h, rng) },
+	"harbor":    func(w, h int, rng *rand.Rand) scene.Scene { return harbor.New(w, h, rng) },
+	"train":     func(w, h int, rng *rand.Rand) scene.Scene { return train.New(w, h, rng) },
+	"ants":      func(w, h int, rng *rand.Rand) scene.Scene { return ants.New(w, h, rng) },
 }
 
 // Random is the background name that picks one of Backgrounds at startup.
