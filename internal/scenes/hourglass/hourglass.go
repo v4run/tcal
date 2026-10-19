@@ -15,6 +15,7 @@ import (
 var (
 	_ scene.Scene   = (*Scene)(nil)
 	_ scene.Clocked = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
 )
 
 const (
@@ -101,6 +102,9 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 	}
 	return s.buf[y*s.w+x]
 }
+
+// Color returns the tint of the glyph at (x, y). Everything drawn is sand.
+func (s *Scene) Color(int, int, scene.Box) scene.Color { return scene.Yellow }
 
 // HourFraction is the elapsed fraction of t's hour, in [0, 1).
 func HourFraction(t time.Time) float64 {

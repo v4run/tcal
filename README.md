@@ -53,6 +53,8 @@ tcal --print | lpr
 | `--with-clock`   | off            | include block clock in print mode          |
 | `--clock-style`  | `block`        | `block \| inline \| boxed`                 |
 | `--bg`           | `none`         | `none`, `random`, or a name from [Backgrounds](#backgrounds) (live mode only) |
+| `--bg-color`     | `true`         | tint the background; `false` draws it dim in the foreground color |
+| `--bg-time`      | now            | time seen by `sky`/`hourglass`: `HH:MM`, `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM` |
 
 ## Backgrounds
 
@@ -78,6 +80,16 @@ tcal --print | lpr
 
 Bottom-strip scenes (`container`, `harbor`, `train`) hide themselves when the terminal is too short to fit them below the calendar.
 
+Backgrounds are drawn dim and tinted from your terminal's 16-color palette, so they follow your theme; `--bg-color=false` keeps them monochrome. To preview a time-aware background at another time, shift its clock with `--bg-time` (it keeps ticking from there; the calendar keeps the real time):
+
+```
+tcal --bg sky --bg-time 22:30               # tonight's sky
+tcal --bg sky --bg-time 2024-04-23T23:00    # a full moon
+tcal --bg hourglass --bg-time 10:55         # nearly full hourglass
+```
+
+`seasons` follows the month on screen — page with `h`/`l` to change the season.
+
 ## Manual smoke checklist
 
 After any change to layout/centering code, run through:
@@ -89,6 +101,8 @@ After any change to layout/centering code, run through:
 - [ ] Run in a 40×10 terminal — "too narrow" hint appears at the top.
 - [ ] `tcal --bg life` — dim cells animate in the margins only, never inside the calendar/clock box; resize reseeds.
 - [ ] `NO_COLOR=1 tcal --bg life` — cells render as plain `·` with no escapes.
+- [ ] `tcal --bg aquarium` vs `tcal --bg aquarium --bg-color=false` — tinted vs plain dim; `NO_COLOR=1` shows no escapes.
+- [ ] `tcal --bg sky --bg-time 22:30` — night sky and moon, while the calendar header shows the real time.
 - [ ] `tcal --bg random` a few times — a different background each launch; none ever draw over the calendar.
 - [ ] `tcal --bg container` in a tall terminal — a shipping container slides along the bottom and hops every bush; shrink the window until the strip would touch the calendar and it disappears.
 - [ ] `tcal --date 2026-13` — exits non-zero with a one-line error.

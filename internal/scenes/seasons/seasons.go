@@ -16,6 +16,7 @@ import (
 var (
 	_ scene.Scene   = (*Scene)(nil)
 	_ scene.Clocked = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
 )
 
 const interval = 100 * time.Millisecond
@@ -76,6 +77,7 @@ type Scene struct {
 	season Season
 	ps     []particle
 	buf    []rune
+	colors []scene.Color // parallel to buf
 	tick   int
 	rng    *rand.Rand
 }
@@ -92,6 +94,7 @@ func New(w, h int, rng *rand.Rand) *Scene {
 func (s *Scene) Resize(w, h int) {
 	s.w, s.h = max(w, 0), max(h, 0)
 	s.buf = make([]rune, s.w*s.h)
+	s.colors = make([]scene.Color, s.w*s.h)
 	s.reset()
 }
 
@@ -115,6 +118,34 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 		return 0
 	}
 	return s.buf[y*s.w+x]
+}
+
+// Color returns the tint of the glyph at (x, y): white snow, magenta
+// petals, yellow fireflies, and red or yellow leaves.
+func (s *Scene) Color(x, y int, _ scene.Box) scene.Color {
+	if x < 0 || y < 0 || x >= s.w || y >= s.h {
+		return scene.Default
+	}
+	return s.colors[y*s.w+x]
+}
+
+// leafColors alternate across particle slots, so each leaf keeps its color
+// as it falls (a respawned leaf inherits its slot's color).
+var leafColors = []scene.Color{scene.Red, scene.Yellow}
+
+// color returns the tint of the i'th particle.
+func (s *Scene) color(i int) scene.Color {
+	switch s.season {
+	case Winter:
+		return scene.White
+	case Spring:
+		return scene.Magenta
+	case Summer:
+		return scene.Yellow
+	case Autumn:
+		return leafColors[i%len(leafColors)]
+	}
+	return scene.Default
 }
 
 // reset scatters a fresh set of particles over the whole screen.
@@ -217,6 +248,7 @@ func (s *Scene) glyph(p *particle) rune {
 
 func (s *Scene) render() {
 	clear(s.buf)
+	clear(s.colors)
 	for i := range s.ps {
 		p := &s.ps[i]
 		x := int(math.Floor(p.x))
@@ -227,6 +259,7 @@ func (s *Scene) render() {
 		}
 		if r := s.glyph(p); r != 0 {
 			s.buf[y*s.w+x] = r
+			s.colors[y*s.w+x] = s.color(i)
 		}
 	}
 }

@@ -16,6 +16,7 @@ import (
 var (
 	_ scene.Scene   = (*Scene)(nil)
 	_ scene.Clocked = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
 )
 
 const (
@@ -73,6 +74,7 @@ type cloud struct {
 type Scene struct {
 	w, h    int
 	buf     []rune
+	colors  []scene.Color // parallel to buf
 	now     time.Time
 	hasTime bool
 	tick    int
@@ -93,6 +95,7 @@ func New(w, h int, rng *rand.Rand) *Scene {
 func (s *Scene) Resize(w, h int) {
 	s.w, s.h = max(w, 0), max(h, 0)
 	s.buf = make([]rune, s.w*s.h)
+	s.colors = make([]scene.Color, s.w*s.h)
 	s.scatter()
 	s.render()
 }
@@ -126,6 +129,15 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 		return 0
 	}
 	return s.buf[y*s.w+x]
+}
+
+// Color returns the tint of the glyph at (x, y): a yellow sun, white clouds
+// and moon, and plain stars that flash yellow as they twinkle.
+func (s *Scene) Color(x, y int, _ scene.Box) scene.Color {
+	if x < 0 || y < 0 || x >= s.w || y >= s.h {
+		return scene.Default
+	}
+	return s.colors[y*s.w+x]
 }
 
 // arcBottom is the row where the sun or moon rises and sets.
@@ -240,15 +252,17 @@ func moonGlyphs(p float64) [moonRows][moonCols]rune {
 	return g
 }
 
-func (s *Scene) set(x, y int, r rune) {
+func (s *Scene) set(x, y int, r rune, c scene.Color) {
 	if r == 0 || r == ' ' || x < 0 || y < 0 || x >= s.w || y >= s.h {
 		return
 	}
 	s.buf[y*s.w+x] = r
+	s.colors[y*s.w+x] = c
 }
 
 func (s *Scene) render() {
 	clear(s.buf)
+	clear(s.colors)
 	if !s.hasTime || s.w == 0 || s.h == 0 {
 		return
 	}
@@ -256,24 +270,24 @@ func (s *Scene) render() {
 	if IsDay(s.now) {
 		for r, row := range sun {
 			for c, ch := range []rune(row) {
-				s.set(x-1+c, y-1+r, ch)
+				s.set(x-1+c, y-1+r, ch, scene.Yellow)
 			}
 		}
 		for _, cl := range s.clouds {
 			for r, row := range cloudShapes[cl.shape] {
 				for c, ch := range []rune(row) {
-					s.set(int(math.Floor(cl.x))+c, cl.y+r, ch)
+					s.set(int(math.Floor(cl.x))+c, cl.y+r, ch, scene.White)
 				}
 			}
 		}
 		return
 	}
 	for _, st := range s.stars {
-		g := st.glyph
+		g, c := st.glyph, scene.Default
 		if (s.tick+st.offset)%st.period < twinkleTick {
-			g = '+'
+			g, c = '+', scene.Yellow
 		}
-		s.set(st.x, st.y, g)
+		s.set(st.x, st.y, g, c)
 	}
 	// The moon blots out the stars behind it, lit or not.
 	mx, my := x-moonCols/2, y-moonRows/2
@@ -282,6 +296,7 @@ func (s *Scene) render() {
 		for c := range moonCols {
 			if px, py := mx+c, my+r; px >= 0 && py >= 0 && px < s.w && py < s.h {
 				s.buf[py*s.w+px] = moon[r][c]
+				s.colors[py*s.w+px] = scene.White
 			}
 		}
 	}

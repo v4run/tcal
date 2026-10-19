@@ -29,18 +29,30 @@ const (
 	coreGlyph = '░'
 )
 
-// blob is one metaball. x is in columns, y and r in rows.
-type blob struct{ x, y, vx, vy, r float64 }
+// blobColors are the hues blobs are tinted with.
+var blobColors = []scene.Color{scene.Red, scene.Magenta, scene.Yellow}
+
+// blob is one metaball. x is in columns, y and r in rows; hue indexes
+// blobColors and is fixed for the blob's life.
+type blob struct {
+	x, y, vx, vy, r float64
+	hue             int
+}
 
 // Scene is a lava lamp filling the whole screen.
 type Scene struct {
 	w, h  int
 	blobs []blob
-	buf   []rune // rendered frame, row-major
+	buf   []rune        // rendered frame, row-major
+	col   []scene.Color // color of each buf cell
+	made  uint64        // blobs created so far; seeds each blob's hue
 	rng   *rand.Rand
 }
 
-var _ scene.Scene = (*Scene)(nil)
+var (
+	_ scene.Scene   = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
+)
 
 // New returns a w×h lava lamp that draws randomness from rng.
 func New(w, h int, rng *rand.Rand) *Scene {
@@ -53,6 +65,7 @@ func New(w, h int, rng *rand.Rand) *Scene {
 func (s *Scene) Resize(w, h int) {
 	s.w, s.h = max(w, 0), max(h, 0)
 	s.buf = make([]rune, s.w*s.h)
+	s.col = make([]scene.Color, s.w*s.h)
 	s.blobs = s.blobs[:0]
 	if s.w > 0 && s.h > 0 {
 		// Keep blobs modest: roughly a ninth of the screen height.
@@ -61,11 +74,12 @@ func (s *Scene) Resize(w, h int) {
 			a := s.rng.Float64() * 2 * math.Pi
 			v := minSpeed + s.rng.Float64()*(maxSpeed-minSpeed)
 			s.blobs = append(s.blobs, blob{
-				x:  s.rng.Float64() * float64(s.w),
-				y:  s.rng.Float64() * float64(s.h),
-				vx: math.Cos(a) * v * aspect,
-				vy: math.Sin(a) * v,
-				r:  base * (0.7 + 0.6*s.rng.Float64()),
+				x:   s.rng.Float64() * float64(s.w),
+				y:   s.rng.Float64() * float64(s.h),
+				vx:  math.Cos(a) * v * aspect,
+				vy:  math.Sin(a) * v,
+				r:   base * (0.7 + 0.6*s.rng.Float64()),
+				hue: s.nextHue(),
 			})
 		}
 	}
@@ -104,28 +118,57 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 	return s.buf[y*s.w+x]
 }
 
-// field returns the summed metaball field Σ r²/d² at cell (x, y).
-func (s *Scene) field(x, y int) float64 {
-	px, py := (float64(x)+0.5)/aspect, float64(y)+0.5
-	f := 0.0
-	for _, b := range s.blobs {
-		dx, dy := px-b.x/aspect, py-b.y
-		f += b.r * b.r / (dx*dx + dy*dy + 1e-6)
+// Color returns the hue of the blob contributing most to the field at
+// (x, y), so merging blobs meet at a boundary rather than mixing.
+func (s *Scene) Color(x, y int, _ scene.Box) scene.Color {
+	if x < 0 || y < 0 || x >= s.w || y >= s.h {
+		return scene.Default
 	}
-	return f
+	return s.col[y*s.w+x]
+}
+
+// nextHue picks a blob hue without drawing from rng, so the animation's
+// random sequence is unaffected by color.
+func (s *Scene) nextHue() int {
+	s.made++
+	z := s.made + 0x9e3779b97f4a7c15 // splitmix64 finalizer
+	z = (z ^ z>>30) * 0xbf58476d1ce4e5b9
+	z = (z ^ z>>27) * 0x94d049bb133111eb
+	return int((z ^ z>>31) % uint64(len(blobColors)))
+}
+
+// field returns the summed metaball field Σ r²/d² at cell (x, y), and the
+// index of the blob contributing most to it (-1 if there are none).
+func (s *Scene) field(x, y int) (float64, int) {
+	px, py := (float64(x)+0.5)/aspect, float64(y)+0.5
+	f, top, best := 0.0, 0.0, -1
+	for i, b := range s.blobs {
+		dx, dy := px-b.x/aspect, py-b.y
+		c := b.r * b.r / (dx*dx + dy*dy + 1e-6)
+		f += c
+		if c > top {
+			top, best = c, i
+		}
+	}
+	return f, best
 }
 
 func (s *Scene) render() {
 	for y := range s.h {
 		for x := range s.w {
 			var r rune
-			switch f := s.field(x, y); {
+			c := scene.Default
+			f, top := s.field(x, y)
+			switch {
 			case f >= coreLevel:
 				r = coreGlyph
 			case f >= rimLevel:
 				r = rimGlyph
 			}
-			s.buf[y*s.w+x] = r
+			if r != 0 {
+				c = blobColors[s.blobs[top].hue%len(blobColors)]
+			}
+			s.buf[y*s.w+x], s.col[y*s.w+x] = r, c
 		}
 	}
 }

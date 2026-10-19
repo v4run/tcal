@@ -53,7 +53,13 @@ type Scene struct {
 	rng   *rand.Rand
 }
 
-var _ scene.Scene = (*Scene)(nil)
+var (
+	_ scene.Scene   = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
+)
+
+// antColor is the color of every ant.
+const antColor = scene.Red
 
 // New returns a w×h scene that draws randomness from rng.
 func New(w, h int, rng *rand.Rand) *Scene {
@@ -124,6 +130,15 @@ func (s *Scene) Glyph(x, y int, b scene.Box) rune {
 		s.draw()
 	}
 	return s.grid[y*s.w+x]
+}
+
+// Color returns the tint of the glyph at screen (x, y): every ant is
+// antColor, and anywhere else is Default.
+func (s *Scene) Color(x, y int, b scene.Box) scene.Color {
+	if s.Glyph(x, y, b) != 0 {
+		return antColor
+	}
+	return scene.Default
 }
 
 // setBox rebuilds the ring for b and rescales ant offsets onto it,

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"math/rand/v2"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -215,6 +216,52 @@ func TestOverlay_ColorResetsAtSegmentEnd(t *testing.T) {
 	for i, ln := range strings.Split(got, "\n") {
 		if strings.Contains(ln, sgrColor(scene.Green)) && !strings.Contains(ln, fgReset+faintOff) {
 			t.Fatalf("line %d leaves the color set", i)
+		}
+	}
+}
+
+// Every registered background is tinted, and colored rows never leak a
+// color past the end of a background segment into the calendar.
+func TestAllBackgrounds_ColorWellFormed(t *testing.T) {
+	sgr := regexp.MustCompile(`\x1b\[(3[1-7]|39)m`)
+	for _, name := range Backgrounds() {
+		m := runnerModel(100, 40)
+		m = m.WithBackground(name)
+		if _, ok := m.bg.(scene.Colored); !ok {
+			t.Errorf("%s does not implement scene.Colored", name)
+			continue
+		}
+		tinted := false
+		for i := 0; i < 200; i++ {
+			next, _ := m.Update(bgTickMsg{})
+			m = next.(Model)
+			if i%25 != 0 {
+				continue
+			}
+			for y, ln := range strings.Split(m.View(), "\n") {
+				// Track the color across the line: each faint segment must
+				// end back on the default foreground.
+				for _, seg := range strings.Split(ln, faintOff) {
+					ss := sgr.FindAllStringSubmatch(seg, -1)
+					if len(ss) > 0 && ss[len(ss)-1][1] != "39" && strings.Contains(seg, faintOn) {
+						t.Fatalf("%s tick %d row %d: segment ends with color %s set", name, i, y, ss[len(ss)-1][1])
+					}
+				}
+			}
+			// Check tinting on the scene itself: what is visible depends on
+			// where things happen to be relative to the calendar.
+			colored := m.bg.(scene.Colored)
+			for y := 0; y < 40 && !tinted; y++ {
+				for x := 0; x < 100; x++ {
+					if m.bg.Glyph(x, y, scene.Box{Y0: -1, Y1: -1}) != 0 && colored.Color(x, y, scene.Box{Y0: -1, Y1: -1}) != scene.Default {
+						tinted = true
+						break
+					}
+				}
+			}
+		}
+		if !tinted {
+			t.Errorf("%s never emitted a color", name)
 		}
 	}
 }

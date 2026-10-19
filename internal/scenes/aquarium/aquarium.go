@@ -11,7 +11,19 @@ import (
 	"github.com/v4run/tcal/internal/scene"
 )
 
-var _ scene.Scene = (*Scene)(nil)
+var (
+	_ scene.Scene   = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
+)
+
+// fishColors are the goldfish-ish hues fish are tinted with; bubbles are
+// cyan and seaweed green.
+var fishColors = []scene.Color{scene.Yellow, scene.Red, scene.Magenta}
+
+const (
+	bubbleColor = scene.Cyan
+	weedColor   = scene.Green
+)
 
 // interval is the delay between Ticks.
 const interval = 100 * time.Millisecond
@@ -55,6 +67,7 @@ type fish struct {
 	dir   int     // +1 swims right, -1 left
 	speed float64 // columns per Tick
 	shape int
+	hue   int // index into fishColors, fixed at spawn
 }
 
 func (f fish) art() string {
@@ -82,6 +95,8 @@ type Scene struct {
 	weeds   []weed
 	ticks   int
 	buf     []rune
+	col     []scene.Color // color of each buf cell
+	spawned uint64        // fish spawned so far; seeds each fish's hue
 	rng     *rand.Rand
 }
 
@@ -101,6 +116,7 @@ func (s *Scene) Interval() time.Duration { return interval }
 func (s *Scene) Resize(w, h int) {
 	s.w, s.h = max(w, 0), max(h, 0)
 	s.buf = make([]rune, s.w*s.h)
+	s.col = make([]scene.Color, s.w*s.h)
 
 	want := s.target()
 	if len(s.fish) > want {
@@ -177,6 +193,15 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 	return s.buf[y*s.w+x]
 }
 
+// Color returns the tint of the glyph at (x, y): each fish keeps the hue it
+// spawned with, bubbles are cyan and seaweed green.
+func (s *Scene) Color(x, y int, _ scene.Box) scene.Color {
+	if x < 0 || y < 0 || x >= s.w || y >= s.h {
+		return scene.Default
+	}
+	return s.col[y*s.w+x]
+}
+
 // target is the number of fish for the current screen size.
 func (s *Scene) target() int {
 	if s.w == 0 || s.h == 0 {
@@ -198,6 +223,7 @@ func (s *Scene) spawn(scattered bool) fish {
 		dir:   1,
 		speed: minSpeed + s.rng.Float64()*speedSpread,
 		shape: s.rng.IntN(len(shapes)),
+		hue:   s.nextHue(),
 	}
 	if s.rng.IntN(2) == 0 {
 		f.dir = -1
@@ -212,6 +238,21 @@ func (s *Scene) spawn(scattered bool) fish {
 		f.x = float64(s.w) - 0.5
 	}
 	return f
+}
+
+// nextHue picks a fish hue without drawing from rng, so adding color left
+// the animation's random sequence unchanged.
+func (s *Scene) nextHue() int {
+	s.spawned++
+	return int(mix(s.spawned) % uint64(len(fishColors)))
+}
+
+// mix is the splitmix64 finalizer: a cheap, well-scrambled hash.
+func mix(z uint64) uint64 {
+	z += 0x9e3779b97f4a7c15
+	z = (z ^ z>>30) * 0xbf58476d1ce4e5b9
+	z = (z ^ z>>27) * 0x94d049bb133111eb
+	return z ^ z>>31
 }
 
 // newBubble starts a bubble on the floor, preferring to rise from seaweed.
@@ -243,6 +284,7 @@ func (s *Scene) plant() {
 
 func (s *Scene) render() {
 	clear(s.buf)
+	clear(s.col)
 	sway := s.ticks / swayPeriod
 	for _, wd := range s.weeds {
 		for i := range wd.h {
@@ -250,16 +292,17 @@ func (s *Scene) render() {
 			if (i+wd.phase+sway)%2 == 1 {
 				r = ')'
 			}
-			s.set(wd.x, s.h-1-i, r)
+			s.set(wd.x, s.h-1-i, r, weedColor)
 		}
 	}
 	for _, b := range s.bubbles {
-		s.set(b.x, int(b.y), s.bubbleGlyph(b))
+		s.set(b.x, int(b.y), s.bubbleGlyph(b), bubbleColor)
 	}
 	for _, f := range s.fish {
 		x0 := int(math.Floor(f.x)) // not int(), which rounds toward zero off the left edge
+		c := fishColors[f.hue%len(fishColors)]
 		for i, r := range f.art() {
-			s.set(x0+i, f.y, r)
+			s.set(x0+i, f.y, r, c)
 		}
 	}
 }
@@ -279,12 +322,13 @@ func (s *Scene) bubbleGlyph(b bubble) rune {
 	}
 }
 
-// set draws r at (x, y), ignoring cells off screen.
-func (s *Scene) set(x, y int, r rune) {
+// set draws r in color c at (x, y), ignoring cells off screen.
+func (s *Scene) set(x, y int, r rune, c scene.Color) {
 	if x < 0 || y < 0 || x >= s.w || y >= s.h {
 		return
 	}
 	s.buf[y*s.w+x] = r
+	s.col[y*s.w+x] = c
 }
 
 func clamp(v, lo, hi int) int { return max(lo, min(v, hi)) }

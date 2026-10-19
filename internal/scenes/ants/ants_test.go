@@ -167,3 +167,30 @@ func sameFrame(a, b map[[2]int]rune) bool {
 	}
 	return true
 }
+
+func TestAntsAreRed(t *testing.T) {
+	const w, h = 100, 30
+	b := scene.Box{X0: 30, X1: 70, Y0: 8, Y1: 20}
+	for seed := uint64(0); seed < 3; seed++ {
+		s := New(w, h, rng(seed))
+		ants := 0
+		for i := 0; i < 300; i++ {
+			s.Tick()
+			for y := -1; y <= h; y++ {
+				for x := -1; x <= w; x++ {
+					want := scene.Default
+					if s.Glyph(x, y, b) != 0 {
+						want = scene.Red
+						ants++
+					}
+					if c := s.Color(x, y, b); c != want {
+						t.Fatalf("seed %d: (%d,%d) is color %d, want %d", seed, x, y, c, want)
+					}
+				}
+			}
+		}
+		if ants == 0 {
+			t.Fatalf("seed %d: no ants", seed)
+		}
+	}
+}

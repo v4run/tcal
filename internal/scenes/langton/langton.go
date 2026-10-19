@@ -43,6 +43,10 @@ var (
 
 type ant struct{ x, y, dir int }
 
+// antColors are the ants' hues; with at most maxAnts ants each gets its
+// own, and the cells an ant flips black take its hue.
+var antColors = [maxAnts]scene.Color{scene.Red, scene.Yellow, scene.Magenta}
+
 // Scene is a Langton's ant colony on a wrapping grid.
 type Scene struct {
 	w, h   int
@@ -50,10 +54,15 @@ type Scene struct {
 	nblack int
 	steps  int // moves since the last reset, over all ants
 	ants   []ant
+	col    []scene.Color // hue of the ant that last flipped each cell black
+	resets int           // resets so far; rotates which hue the first ant gets
 	rng    *rand.Rand
 }
 
-var _ scene.Scene = (*Scene)(nil)
+var (
+	_ scene.Scene   = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
+)
 
 // New returns a w×h colony that draws randomness from rng.
 func New(w, h int, rng *rand.Rand) *Scene {
@@ -66,12 +75,15 @@ func New(w, h int, rng *rand.Rand) *Scene {
 func (s *Scene) Resize(w, h int) {
 	s.w, s.h = max(w, 0), max(h, 0)
 	s.black = make([]bool, s.w*s.h)
+	s.col = make([]scene.Color, s.w*s.h)
 	s.reset()
 }
 
 // reset clears the grid and places 1–maxAnts ants at random.
 func (s *Scene) reset() {
 	clear(s.black)
+	clear(s.col)
+	s.resets++
 	s.nblack, s.steps = 0, 0
 	s.ants = s.ants[:0]
 	if len(s.black) == 0 {
@@ -96,6 +108,7 @@ func (s *Scene) step() {
 			s.nblack++
 		}
 		s.black[c] = !s.black[c]
+		s.col[c] = s.antColor(i)
 		a.x = (a.x + dxs[a.dir] + s.w) % s.w
 		a.y = (a.y + dys[a.dir] + s.h) % s.h
 		s.steps++
@@ -116,6 +129,12 @@ func (s *Scene) Tick() {
 // Interval is the delay between Ticks.
 func (s *Scene) Interval() time.Duration { return 80 * time.Millisecond }
 
+// antColor is the hue of ant i. Hues rotate with each reset (without
+// drawing from rng, so the animation's random sequence is unchanged).
+func (s *Scene) antColor(i int) scene.Color {
+	return antColors[(s.resets+i)%len(antColors)]
+}
+
 // Glyph returns the ant or black-cell glyph at (x, y), or 0 for white.
 func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 	if x < 0 || y < 0 || x >= s.w || y >= s.h {
@@ -130,4 +149,18 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 		return cellGlyph
 	}
 	return 0
+}
+
+// Color returns the hue of the ant at (x, y), or of the ant that last
+// flipped the black cell there.
+func (s *Scene) Color(x, y int, _ scene.Box) scene.Color {
+	if x < 0 || y < 0 || x >= s.w || y >= s.h {
+		return scene.Default
+	}
+	for i, a := range s.ants {
+		if a.x == x && a.y == y {
+			return s.antColor(i)
+		}
+	}
+	return s.col[y*s.w+x]
 }

@@ -37,9 +37,13 @@ const (
 // never marks a cell no particle has visited.
 const never = math.MinInt32
 
+// particleColors are the hues particles and their trails are tinted with.
+var particleColors = []scene.Color{scene.Cyan, scene.Blue}
+
 type particle struct {
 	x, y float64 // in cells
 	life int     // ticks left
+	hue  int     // index into particleColors, fixed for the particle slot
 }
 
 // Scene is a flow field filling the whole screen.
@@ -48,11 +52,15 @@ type Scene struct {
 	tick  int
 	t     float64 // field time
 	ps    []particle
-	stamp []int32 // tick each cell was last visited
+	stamp []int32       // tick each cell was last visited
+	col   []scene.Color // color of the particle that last visited each cell
 	rng   *rand.Rand
 }
 
-var _ scene.Scene = (*Scene)(nil)
+var (
+	_ scene.Scene   = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
+)
 
 // New returns a w×h flow field that draws randomness from rng.
 func New(w, h int, rng *rand.Rand) *Scene {
@@ -65,6 +73,7 @@ func New(w, h int, rng *rand.Rand) *Scene {
 func (s *Scene) Resize(w, h int) {
 	s.w, s.h = max(w, 0), max(h, 0)
 	s.stamp = make([]int32, s.w*s.h)
+	s.col = make([]scene.Color, s.w*s.h)
 	for i := range s.stamp {
 		s.stamp[i] = never
 	}
@@ -73,8 +82,10 @@ func (s *Scene) Resize(w, h int) {
 		return
 	}
 	n := min(max(s.w*s.h/cellsPerParticle, minParticles), maxParticles)
-	for range n {
-		var p particle
+	for i := range n {
+		// Alternate hues by slot rather than drawing from rng, so the
+		// animation's random sequence is unaffected by color.
+		p := particle{hue: i % len(particleColors)}
 		s.spawn(&p)
 		p.life = 1 + s.rng.IntN(maxLife) // stagger respawns
 		s.ps = append(s.ps, p)
@@ -110,7 +121,9 @@ func (s *Scene) Tick() {
 			s.spawn(p)
 			continue
 		}
-		s.stamp[int(p.y)*s.w+int(p.x)] = int32(s.tick)
+		c := int(p.y)*s.w + int(p.x)
+		s.stamp[c] = int32(s.tick)
+		s.col[c] = particleColors[p.hue%len(particleColors)]
 	}
 }
 
@@ -129,4 +142,12 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 		return trailGlyph
 	}
 	return 0
+}
+
+// Color returns the hue of the particle that laid the trail at (x, y).
+func (s *Scene) Color(x, y int, _ scene.Box) scene.Color {
+	if x < 0 || y < 0 || x >= s.w || y >= s.h {
+		return scene.Default
+	}
+	return s.col[y*s.w+x]
 }

@@ -35,18 +35,28 @@ var dotBits = [dotsX][dotsY]rune{
 
 const brailleBase = 0x2800
 
+// runColors are the hues runs cycle through; each restart takes the next,
+// so a new run scrolling in always differs from the one scrolling away.
+var runColors = []scene.Color{scene.Cyan, scene.Green, scene.Magenta, scene.Blue}
+
 // Scene is a scrolling 1D cellular automaton filling the whole screen.
 type Scene struct {
 	w, h  int
 	rule  uint8
-	gens  [][]bool // visible generations, oldest first; at most dotsY*h
-	run   int      // generations since the last restart
-	spare []bool   // scratch row for the next generation
-	buf   []rune   // rendered frame, row-major
+	gens  [][]bool      // visible generations, oldest first; at most dotsY*h
+	hues  []scene.Color // color of the run that produced each of gens
+	run   int           // generations since the last restart
+	runs  int           // restarts so far; picks the current run's color
+	spare []bool        // scratch row for the next generation
+	buf   []rune        // rendered frame, row-major
+	col   []scene.Color // color of each buf cell
 	rng   *rand.Rand
 }
 
-var _ scene.Scene = (*Scene)(nil)
+var (
+	_ scene.Scene   = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
+)
 
 // New returns a w×h automaton that draws randomness from rng.
 func New(w, h int, rng *rand.Rand) *Scene {
@@ -59,7 +69,8 @@ func New(w, h int, rng *rand.Rand) *Scene {
 func (s *Scene) Resize(w, h int) {
 	s.w, s.h = max(w, 0), max(h, 0)
 	s.buf = make([]rune, s.w*s.h)
-	s.gens = nil
+	s.col = make([]scene.Color, s.w*s.h)
+	s.gens, s.hues = nil, nil
 	s.spare = make([]bool, s.cols())
 	if s.cols() > 0 && s.h > 0 {
 		s.restart(rules[s.rng.IntN(len(rules))])
@@ -74,23 +85,32 @@ func (s *Scene) maxGens() int { return s.h * dotsY }
 // cell. Older generations keep scrolling up undisturbed.
 func (s *Scene) restart(rule uint8) {
 	s.rule, s.run = rule, 0
+	s.runs++
 	row := s.spare
 	clear(row)
 	row[len(row)/2] = true
 	s.push()
 }
 
-// push appends s.spare as the newest generation, recycling the oldest row
-// once the screen is full.
+// color is the current run's color. Runs cycle through runColors rather
+// than drawing from rng, so the animation's random sequence is unchanged.
+func (s *Scene) color() scene.Color { return runColors[s.runs%len(runColors)] }
+
+// push appends s.spare as the newest generation, tagged with the current
+// run's color, recycling the oldest row once the screen is full.
 func (s *Scene) push() {
+	s.syncHues()
 	row := s.spare
 	if len(s.gens) < s.maxGens() {
 		s.spare = make([]bool, s.cols())
 		s.gens = append(s.gens, row)
+		s.hues = append(s.hues, s.color())
 	} else {
 		s.spare = s.gens[0]
 		copy(s.gens, s.gens[1:])
 		s.gens[len(s.gens)-1] = row
+		copy(s.hues, s.hues[1:])
+		s.hues[len(s.hues)-1] = s.color()
 	}
 }
 
@@ -145,13 +165,37 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 	return s.buf[y*s.w+x]
 }
 
+// syncHues keeps hues the same length as gens, aligned at the newest end,
+// should gens have been replaced wholesale.
+func (s *Scene) syncHues() {
+	if n := len(s.gens); len(s.hues) > n {
+		s.hues = append(s.hues[:0], s.hues[len(s.hues)-n:]...)
+	} else {
+		for len(s.hues) < n {
+			s.hues = slices.Insert(s.hues, 0, s.color())
+		}
+	}
+}
+
+// Color returns the color of the run that produced the newest dots of
+// the glyph at (x, y).
+func (s *Scene) Color(x, y int, _ scene.Box) scene.Color {
+	if x < 0 || y < 0 || x >= s.w || y >= s.h {
+		return scene.Default
+	}
+	return s.col[y*s.w+x]
+}
+
 func (s *Scene) render() {
+	s.syncHues()
 	clear(s.buf)
+	clear(s.col)
 	for g, row := range s.gens {
 		y, dy := g/dotsY, g%dotsY
 		for c, alive := range row {
 			if alive {
 				s.buf[y*s.w+c/dotsX] |= dotBits[c%dotsX][dy]
+				s.col[y*s.w+c/dotsX] = s.hues[g]
 			}
 		}
 	}

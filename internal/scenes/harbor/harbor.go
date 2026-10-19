@@ -70,11 +70,12 @@ var mirror = map[rune]rune{
 }
 
 type ship struct {
-	art    [][]rune // shipH rows, all the same width; ' ' is transparent
-	x      int      // screen column of the left edge
-	dir    int      // +1 sails right, -1 sails left
-	period int      // ticks per column
-	sub    int      // ticks since last move
+	art    [][]rune        // shipH rows, all the same width; ' ' is transparent
+	tint   [][]scene.Color // color of each art cell, fixed at launch
+	x      int             // screen column of the left edge
+	dir    int             // +1 sails right, -1 sails left
+	period int             // ticks per column
+	sub    int             // ticks since last move
 }
 
 func (s *ship) width() int { return len(s.art[0]) }
@@ -88,11 +89,27 @@ type Scene struct {
 	// pending is a companion ship waiting for room behind ships[0].
 	pending    *ship
 	pendingGap int
-	frame      [][]rune // Height rows × w, rebuilt every Tick
+	frame      [][]rune        // Height rows × w, rebuilt every Tick
+	tint       [][]scene.Color // color of each frame cell, rebuilt with it
+	built      uint64          // ships built so far; seeds container colors
 	rng        *rand.Rand
 }
 
-var _ scene.Scene = (*Scene)(nil)
+var (
+	_ scene.Scene   = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
+)
+
+// Colors: the sea is blue, hulls and bridges keep the terminal's
+// foreground, and each container is painted when its ship is built.
+const (
+	waterColor = scene.Blue
+	hullColor  = scene.Default
+	bigColor   = scene.Red // matches the runner scene's container
+)
+
+// boxColors are the paints small containers are picked from.
+var boxColors = []scene.Color{scene.Red, scene.Yellow, scene.Blue, scene.Green, scene.Cyan, scene.Magenta}
 
 // New returns a w×h scene that draws randomness from rng.
 func New(w, h int, rng *rand.Rand) *Scene {
@@ -107,8 +124,10 @@ func (s *Scene) Resize(w, h int) {
 	s.w, s.h = max(w, 0), max(h, 0)
 	s.cull()
 	s.frame = make([][]rune, Height)
+	s.tint = make([][]scene.Color, Height)
 	for i := range s.frame {
 		s.frame[i] = make([]rune, s.w)
+		s.tint[i] = make([]scene.Color, s.w)
 	}
 	s.render()
 }
@@ -156,6 +175,16 @@ func (s *Scene) Glyph(x, y int, b scene.Box) rune {
 	return s.frame[row][x]
 }
 
+// Color returns the tint of the glyph at screen (x, y): Default anywhere
+// nothing is drawn or off the strip.
+func (s *Scene) Color(x, y int, _ scene.Box) scene.Color {
+	row := y - (s.h - Height)
+	if x < 0 || x >= s.w || row < 0 || row >= Height {
+		return scene.Default
+	}
+	return s.tint[row][x]
+}
+
 // launch sends a ship onto the empty sea and, sometimes, queues a slower
 // companion to follow in the same direction.
 func (s *Scene) launch() {
@@ -174,7 +203,8 @@ func (s *Scene) launch() {
 
 // newShip builds a ship just off the edge it enters from.
 func (s *Scene) newShip(dir, period int) *ship {
-	sh := &ship{art: s.buildArt(dir), dir: dir, period: period}
+	art, tint := s.buildArt(dir)
+	sh := &ship{art: art, tint: tint, dir: dir, period: period}
 	if dir > 0 {
 		sh.x = -sh.width()
 	} else {
@@ -204,11 +234,13 @@ func (s *Scene) cull() {
 	s.ships = kept
 }
 
-// buildArt draws a random right-facing ship and mirrors it for dir < 0.
-// Rows top to bottom: cargo and bridge, deck, hull side, keel in the water.
-func (s *Scene) buildArt(dir int) [][]rune {
+// buildArt draws a random right-facing ship and mirrors it for dir < 0,
+// along with the color of each cell. Rows top to bottom: cargo and bridge,
+// deck, hull side, keel in the water.
+func (s *Scene) buildArt(dir int) ([][]rune, [][]scene.Color) {
 	var cargo [][]string
-	if s.rng.IntN(4) == 0 {
+	big := s.rng.IntN(4) == 0
+	if big {
 		cargo = [][]string{bigBox}
 	} else {
 		cargo = s.stacks()
@@ -220,15 +252,18 @@ func (s *Scene) buildArt(dir int) [][]rune {
 	}
 
 	art := make([][]rune, shipH)
+	tint := make([][]scene.Color, shipH)
 	for i := range art {
 		art[i] = []rune(strings.Repeat(" ", width))
+		tint[i] = make([]scene.Color, width) // hullColor
 	}
-	put := func(sprite []string, col int) {
+	put := func(sprite []string, col int, c scene.Color) {
 		top := cargoBot - len(sprite) + 1
 		for r, line := range sprite {
-			for c, ch := range []rune(line) {
+			for i, ch := range []rune(line) {
 				if ch != ' ' {
-					art[top+r][col+c] = ch
+					art[top+r][col+i] = ch
+					tint[top+r][col+i] = c
 				}
 			}
 		}
@@ -247,26 +282,54 @@ func (s *Scene) buildArt(dir int) [][]rune {
 	}
 
 	col := stern
-	put(bridge, col)
+	put(bridge, col, hullColor)
 	bw := len([]rune(bridge[0]))
 	for c := col; c < col+bw; c++ {
 		art[deckRow][c] = '┴'
 	}
 	col += bw + 1
+	paint := s.painter()
 	for _, c := range cargo {
 		col++
-		put(c, col)
+		color := bigColor
+		if !big {
+			color = paint()
+		}
+		put(c, col, color)
 		col += len([]rune(c[0]))
 	}
 
 	if dir < 0 {
-		for _, row := range art {
+		for r, row := range art {
+			t := tint[r]
 			for i, j := 0, len(row)-1; i <= j; i, j = i+1, j-1 {
 				row[i], row[j] = flip(row[j]), flip(row[i])
+				t[i], t[j] = t[j], t[i]
 			}
 		}
 	}
-	return art
+	return art, tint
+}
+
+// painter returns a source of container colors for the next ship built.
+// Colors are hashed from a build counter rather than drawn from rng, so
+// the scene's random sequence (and so its animation) is unaffected.
+// Neighbouring containers never share a color.
+func (s *Scene) painter() func() scene.Color {
+	s.built++
+	h := s.built * 0x9e3779b97f4a7c15
+	prev := -1
+	return func() scene.Color {
+		h ^= h >> 29
+		h *= 0xbf58476d1ce4e5b9
+		h ^= h >> 32
+		i := int(h % uint64(len(boxColors)))
+		if i == prev {
+			i = (i + 1) % len(boxColors)
+		}
+		prev = i
+		return boxColors[i]
+	}
 }
 
 // stacks picks 1–3 small containers and arranges them as single boxes or
@@ -293,13 +356,15 @@ func (s *Scene) stacks() [][]string {
 func (s *Scene) render() {
 	shift := s.t / waterEvery
 	for row := range s.frame {
-		line := s.frame[row]
+		line, tint := s.frame[row], s.tint[row]
 		for x := range line {
 			line[x] = 0
+			tint[x] = scene.Default
 		}
 		if row == Height-1 {
 			for x := range line {
 				line[x] = waterGlyph(x + shift)
+				tint[x] = waterColor
 			}
 		}
 	}
@@ -309,6 +374,7 @@ func (s *Scene) render() {
 				x := sh.x + c
 				if ch != ' ' && x >= 0 && x < s.w {
 					s.frame[r][x] = ch
+					s.tint[r][x] = sh.tint[r][c]
 				}
 			}
 		}

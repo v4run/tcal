@@ -111,13 +111,13 @@ func TestShipArtIsRectangular(t *testing.T) {
 	s := New(100, 30, rng(4))
 	for i := 0; i < 200; i++ {
 		for _, dir := range []int{1, -1} {
-			art := s.buildArt(dir)
-			if len(art) != shipH {
-				t.Fatalf("ship has %d rows", len(art))
+			art, tint := s.buildArt(dir)
+			if len(art) != shipH || len(tint) != shipH {
+				t.Fatalf("ship has %d rows, %d tint rows", len(art), len(tint))
 			}
-			for _, row := range art {
-				if len(row) != len(art[0]) {
-					t.Fatalf("ragged ship art")
+			for r, row := range art {
+				if len(row) != len(art[0]) || len(tint[r]) != len(row) {
+					t.Fatalf("ragged ship art or tint")
 				}
 			}
 		}
@@ -134,7 +134,117 @@ func TestResizeAnySize(t *testing.T) {
 		for y := -1; y <= sz[1]; y++ {
 			for x := -1; x <= sz[0]; x++ {
 				s.Glyph(x, y, scene.Box{Y0: -1, Y1: -1})
+				s.Color(x, y, scene.Box{Y0: -1, Y1: -1})
 			}
 		}
+	}
+}
+
+func TestColors(t *testing.T) {
+	allowed := map[scene.Color]bool{scene.Default: true}
+	for _, c := range boxColors {
+		allowed[c] = true
+	}
+	const w, h = 120, 30
+	for seed := uint64(0); seed < 5; seed++ {
+		s := New(w, h, rng(seed))
+		b := lowBox(h)
+		sawBox := false
+		for i := 0; i < 2000; i++ {
+			s.Tick()
+			for y := h - Height; y < h; y++ {
+				for x := 0; x < w; x++ {
+					r := s.Glyph(x, y, b)
+					if r == 0 {
+						continue
+					}
+					c := s.Color(x, y, b)
+					switch {
+					case y == h-1 && (r == '~' || r == '-' || r == '_'):
+						if c != scene.Blue {
+							t.Fatalf("seed %d: water %q at %d is color %d", seed, r, x, c)
+						}
+					case y-(h-Height) > cargoBot: // deck, hull and keel
+						if c != scene.Default {
+							t.Fatalf("seed %d: hull %q at (%d,%d) is color %d", seed, r, x, y, c)
+						}
+					case !allowed[c]:
+						t.Fatalf("seed %d: %q at (%d,%d) has color %d", seed, r, x, y, c)
+					case c != scene.Default:
+						sawBox = true
+					}
+				}
+			}
+		}
+		if !sawBox {
+			t.Fatalf("seed %d: no colored container in 2000 ticks", seed)
+		}
+	}
+}
+
+func TestContainerColorsAreStable(t *testing.T) {
+	s := New(120, 30, rng(7))
+	for i := 0; i < 50; i++ {
+		art, tint := s.buildArt(1 + i%2*-2)
+		box := 0
+		for r := 0; r <= cargoBot; r++ {
+			for c, ch := range art[r] {
+				col := tint[r][c]
+				if ch == ' ' {
+					if col != scene.Default {
+						t.Fatalf("blank cell tinted %d", col)
+					}
+					continue
+				}
+				if col != scene.Default {
+					box++
+				}
+			}
+		}
+		if box == 0 {
+			t.Fatalf("ship %d has no colored cargo", i)
+		}
+	}
+	// A ship's colors travel with it: the cell under a container keeps
+	// its color as the ship sails.
+	s = New(120, 30, rng(8))
+	for len(s.ships) == 0 {
+		s.Tick()
+	}
+	sh := s.ships[0]
+	want := append([][]scene.Color(nil), sh.tint...)
+	for i := 0; i < 300 && len(s.ships) > 0 && s.ships[0] == sh; i++ {
+		s.Tick()
+		for r := range sh.art {
+			for c, ch := range sh.art[r] {
+				x := sh.x + c
+				if ch == ' ' || x < 0 || x >= s.w {
+					continue
+				}
+				if got := s.Color(x, s.h-Height+r, lowBox(s.h)); got != want[r][c] {
+					t.Fatalf("tick %d: cell (%d,%d) of ship is %d, want %d", i, r, c, got, want[r][c])
+				}
+			}
+		}
+	}
+}
+
+func TestBigContainerIsRed(t *testing.T) {
+	s := New(120, 30, rng(9))
+	found := false
+	for i := 0; i < 400 && !found; i++ {
+		art, tint := s.buildArt(1)
+		for c, ch := range art[cargoBot-1] {
+			if ch == '┃' && c+1 < len(art[cargoBot-1]) && art[cargoBot-1][c+1] == '┃' &&
+				art[cargoBot][c] == '─' {
+				found = true
+				if tint[cargoBot-1][c] != scene.Red {
+					t.Fatalf("big container is %d, want Red", tint[cargoBot-1][c])
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no big container built")
 	}
 }

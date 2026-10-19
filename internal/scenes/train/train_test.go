@@ -138,7 +138,93 @@ func TestResizeAnySize(t *testing.T) {
 		for y := -1; y <= sz[1]; y++ {
 			for x := -1; x <= sz[0]; x++ {
 				s.Glyph(x, y, scene.Box{Y0: -1, Y1: -1})
+				s.Color(x, y, scene.Box{Y0: -1, Y1: -1})
 			}
+		}
+	}
+}
+
+func TestColors(t *testing.T) {
+	allowed := map[scene.Color]bool{scene.Default: true, scene.White: true, locoColor: true, bigColor: true}
+	for _, c := range boxColors {
+		allowed[c] = true
+	}
+	const w, h = 100, 30
+	for seed := uint64(0); seed < 6; seed++ {
+		s := New(w, h, rng(seed))
+		b := lowBox(h)
+		sawLoco := false
+		for i := 0; i < 2000; i++ {
+			s.Tick()
+			for y := h - Height; y < h; y++ {
+				row := y - (h - Height)
+				for x := 0; x < w; x++ {
+					r := s.Glyph(x, y, b)
+					if r == 0 {
+						continue
+					}
+					c := s.Color(x, y, b)
+					if !allowed[c] {
+						t.Fatalf("seed %d: %q at (%d,%d) has color %d", seed, r, x, y, c)
+					}
+					if !s.Passing() && c != scene.Default {
+						t.Fatalf("seed %d: bare rail %q at %d is color %d", seed, r, x, c)
+					}
+					if r == '┃' && c != scene.Red {
+						t.Fatalf("seed %d: boxcar or big container %q at (%d,%d) is %d, want Red", seed, r, x, y, c)
+					}
+					if row == 1 && (r == '╭' || r == '╮') && c != scene.White {
+						t.Fatalf("seed %d: tanker %q at (%d,%d) is %d, want White", seed, r, x, y, c)
+					}
+					if row == 2 && (r == '╮' || r == '╭') {
+						if c != locoColor {
+							t.Fatalf("seed %d: locomotive nose at (%d,%d) is %d", seed, x, y, c)
+						}
+						sawLoco = true
+					}
+				}
+			}
+		}
+		if !sawLoco {
+			t.Fatalf("seed %d: never saw the locomotive", seed)
+		}
+	}
+}
+
+// TestCarColorsAreStable follows each cell of a train across the screen
+// and checks its color never changes.
+func TestCarColorsAreStable(t *testing.T) {
+	const w, h = 100, 30
+	b := lowBox(h)
+	for seed := uint64(0); seed < 10; seed++ {
+		s := New(w, h, rng(seed))
+		for !s.Passing() {
+			s.Tick()
+		}
+		want := make([][]scene.Color, len(s.tint))
+		for r := range s.tint {
+			want[r] = append([]scene.Color(nil), s.tint[r]...)
+		}
+		train := s.train
+		colored := false
+		for s.Passing() {
+			for r, row := range train {
+				for c, ch := range row {
+					x := s.x + c
+					if ch == ' ' || x < 0 || x >= w || (r == 0 && s.frame[0][x] != ch) {
+						continue // off screen, blank, or under smoke
+					}
+					got := s.Color(x, h-Height+r, b)
+					if got != want[r][c] {
+						t.Fatalf("seed %d: train cell (%d,%d) is %d, want %d", seed, r, c, got, want[r][c])
+					}
+					colored = colored || got != scene.Default
+				}
+			}
+			s.Tick()
+		}
+		if !colored {
+			t.Fatalf("seed %d: train had no color", seed)
 		}
 	}
 }

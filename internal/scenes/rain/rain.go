@@ -10,7 +10,10 @@ import (
 	"github.com/v4run/tcal/internal/scene"
 )
 
-var _ scene.Scene = (*Scene)(nil)
+var (
+	_ scene.Scene   = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
+)
 
 const (
 	cellsPerDrop = 70   // screen cells per raindrop; higher is lighter rain
@@ -111,6 +114,19 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 		return 0
 	}
 	return s.buf[y*s.w+x]
+}
+
+// Color returns the tint of the glyph at (x, y): blue drops, a cyan splash
+// and impact, and a plain ground line. Each rune is used by one kind of
+// object only, so the color follows from the glyph.
+func (s *Scene) Color(x, y int, b scene.Box) scene.Color {
+	switch s.Glyph(x, y, b) {
+	case dropGlyph:
+		return scene.Blue
+	case impactGlyph, splashGlyphs[0], splashGlyphs[1]:
+		return scene.Cyan
+	}
+	return scene.Default
 }
 
 // ground is the row of the ground line.

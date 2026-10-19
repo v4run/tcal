@@ -86,6 +86,24 @@ var cars = [][]string{
 	},
 }
 
+// Colors: rails, couplers and smoke keep the terminal's foreground; the
+// locomotive and each car have a paint of their own.
+const (
+	locoColor = scene.Yellow
+	bigColor  = scene.Red // matches the runner scene's container
+)
+
+// carColors is the paint of each car in cars. Flatcars (Default here) are
+// plain decks carrying a container painted from boxColors.
+var carColors = []scene.Color{scene.Red, scene.White, scene.Default, scene.Default, scene.Default}
+
+// boxColors are the paints a flatcar's small container is picked from,
+// the same as the harbour's.
+var boxColors = []scene.Color{scene.Red, scene.Yellow, scene.Blue, scene.Green, scene.Cyan, scene.Magenta}
+
+// flatcar reports whether car i is a flatcar, whose bottom row is the deck.
+func flatcar(i int) bool { return i >= 3 }
+
 // mirror maps each glyph to its left-right reflection.
 var mirror = map[rune]rune{
 	'╱': '╲', '╲': '╱',
@@ -100,14 +118,20 @@ type Scene struct {
 	t     int // ticks elapsed
 	wait  int // ticks until the next train while the track is empty
 	train [][]rune
-	x     int // screen column of the train's left edge
-	dir   int // +1 rolls right, -1 rolls left, 0 when no train
-	chimX int // column of the chimney within train
+	tint  [][]scene.Color // color of each train cell, fixed at departure
+	x     int             // screen column of the train's left edge
+	dir   int             // +1 rolls right, -1 rolls left, 0 when no train
+	chimX int             // column of the chimney within train
 	frame [][]rune
+	color [][]scene.Color // color of each frame cell, rebuilt with it
+	built uint64          // trains assembled so far; seeds container colors
 	rng   *rand.Rand
 }
 
-var _ scene.Scene = (*Scene)(nil)
+var (
+	_ scene.Scene   = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
+)
 
 // New returns a w×h scene that draws randomness from rng. The first train
 // arrives within a few seconds.
@@ -121,8 +145,10 @@ func New(w, h int, rng *rand.Rand) *Scene {
 func (s *Scene) Resize(w, h int) {
 	s.w, s.h = max(w, 0), max(h, 0)
 	s.frame = make([][]rune, Height)
+	s.color = make([][]scene.Color, Height)
 	for i := range s.frame {
 		s.frame[i] = make([]rune, s.w)
+		s.color[i] = make([]scene.Color, s.w)
 	}
 	s.cull()
 	s.render()
@@ -160,42 +186,65 @@ func (s *Scene) Glyph(x, y int, b scene.Box) rune {
 	return s.frame[row][x]
 }
 
+// Color returns the tint of the glyph at screen (x, y): Default anywhere
+// nothing is drawn or off the strip.
+func (s *Scene) Color(x, y int, _ scene.Box) scene.Color {
+	row := y - (s.h - Height)
+	if x < 0 || x >= s.w || row < 0 || row >= Height {
+		return scene.Default
+	}
+	return s.color[row][x]
+}
+
 // Passing reports whether a train is on the screen or entering it.
 func (s *Scene) Passing() bool { return s.dir != 0 }
 
 // depart assembles a random train just off one edge of the screen.
 func (s *Scene) depart() {
-	rows := make([]string, trainH)
+	s.train = make([][]rune, trainH)
+	s.tint = make([][]scene.Color, trainH)
+	add := func(sprite []string, body, deck scene.Color) {
+		for r := range s.train {
+			line := []rune(sprite[r])
+			c := body
+			if r == trainH-1 {
+				c = deck
+			}
+			s.train[r] = append(s.train[r], line...)
+			for range line {
+				s.tint[r] = append(s.tint[r], c)
+			}
+		}
+	}
+	paint := s.painter()
 	n := minCars + s.rng.IntN(carSpread)
 	for range n {
-		car := cars[s.rng.IntN(len(cars)-1)]
+		i := s.rng.IntN(len(cars) - 1)
 		if s.rng.IntN(bigEvery) == 0 {
-			car = cars[len(cars)-1]
+			i = len(cars) - 1
 		}
-		for r := range rows {
-			gap := " "
-			if r == trainH-1 {
-				gap = "─" // coupler
-			}
-			rows[r] += car[r] + gap
+		switch {
+		case i == len(cars)-1:
+			add(cars[i], bigColor, scene.Default)
+		case flatcar(i):
+			add(cars[i], paint(), scene.Default)
+		default:
+			add(cars[i], carColors[i], carColors[i])
 		}
+		add([]string{" ", " ", " ", "─"}, scene.Default, scene.Default) // coupler
 	}
-	s.chimX = len([]rune(rows[0])) + chimney
-	for r := range rows {
-		rows[r] += loco[r]
-	}
+	s.chimX = len(s.train[0]) + chimney
+	add(loco, locoColor, locoColor)
 
-	s.train = make([][]rune, trainH)
-	for r, line := range rows {
-		s.train[r] = []rune(line)
-	}
 	s.dir = 1
 	if s.rng.IntN(2) == 0 {
 		s.dir = -1
 		width := len(s.train[0])
-		for _, row := range s.train {
+		for r, row := range s.train {
+			t := s.tint[r]
 			for i, j := 0, len(row)-1; i <= j; i, j = i+1, j-1 {
 				row[i], row[j] = flip(row[j]), flip(row[i])
+				t[i], t[j] = t[j], t[i]
 			}
 		}
 		s.chimX = width - 1 - s.chimX
@@ -214,7 +263,28 @@ func (s *Scene) cull() {
 	}
 	width := len(s.train[0])
 	if (s.dir > 0 && s.x >= s.w) || (s.dir < 0 && s.x+width <= 0) {
-		s.dir, s.train = 0, nil
+		s.dir, s.train, s.tint = 0, nil, nil
+	}
+}
+
+// painter returns a source of container colors for the train being
+// assembled. Colors are hashed from a build counter rather than drawn from
+// rng, so the scene's random sequence (and so its animation) is
+// unaffected. Consecutive containers never share a color.
+func (s *Scene) painter() func() scene.Color {
+	s.built++
+	h := s.built * 0x9e3779b97f4a7c15
+	prev := -1
+	return func() scene.Color {
+		h ^= h >> 29
+		h *= 0xbf58476d1ce4e5b9
+		h ^= h >> 32
+		i := int(h % uint64(len(boxColors)))
+		if i == prev {
+			i = (i + 1) % len(boxColors)
+		}
+		prev = i
+		return boxColors[i]
 	}
 }
 
@@ -223,6 +293,7 @@ func (s *Scene) render() {
 	for row, line := range s.frame {
 		for x := range line {
 			line[x] = 0
+			s.color[row][x] = scene.Default
 			if row == Height-1 {
 				line[x] = railGlyph(x)
 			}
@@ -234,18 +305,19 @@ func (s *Scene) render() {
 	for r, row := range s.train {
 		for c, ch := range row {
 			if ch != ' ' {
-				s.set(r, s.x+c, ch)
+				s.set(r, s.x+c, ch, s.tint[r][c])
 			}
 		}
 	}
 	for dx, ch := range smoke[(s.t/smokeEvery)%len(smoke)] {
-		s.set(0, s.x+s.chimX+dx*s.dir, ch)
+		s.set(0, s.x+s.chimX+dx*s.dir, ch, scene.Default)
 	}
 }
 
-func (s *Scene) set(row, x int, ch rune) {
+func (s *Scene) set(row, x int, ch rune, c scene.Color) {
 	if x >= 0 && x < s.w {
 		s.frame[row][x] = ch
+		s.color[row][x] = c
 	}
 }
 

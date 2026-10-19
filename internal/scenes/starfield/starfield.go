@@ -10,7 +10,10 @@ import (
 	"github.com/v4run/tcal/internal/scene"
 )
 
-var _ scene.Scene = (*Scene)(nil)
+var (
+	_ scene.Scene   = (*Scene)(nil)
+	_ scene.Colored = (*Scene)(nil)
+)
 
 // interval is the delay between Ticks.
 const interval = 100 * time.Millisecond
@@ -137,6 +140,20 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
 		return 0
 	}
 	return s.buf[y*s.w+x]
+}
+
+// Color returns the tint of the glyph at (x, y): a yellow shooting-star
+// head, white near-layer stars, and plain far stars and meteor trail. The
+// head '*' and near-layer '+' are unique to those objects, so the color
+// follows from the glyph.
+func (s *Scene) Color(x, y int, b scene.Box) scene.Color {
+	switch s.Glyph(x, y, b) {
+	case meteorTrail[0]:
+		return scene.Yellow
+	case layers[len(layers)-1].glyph:
+		return scene.White
+	}
+	return scene.Default
 }
 
 // target is the number of stars for the current screen size.
