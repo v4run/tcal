@@ -34,7 +34,8 @@ func TestSunYellowAtNoon(t *testing.T) {
 	s.clouds = nil
 	s.SetTime(at(12, 0), time.Time{})
 	x, y := s.arcPos(arcFraction(at(12, 0)))
-	if g := s.Glyph(x, y, scene.Box{}); g != 'O' {
+	y++ // the disc sits one row below the arc point
+	if g := s.Glyph(x, y, scene.Box{}); g != '█' {
 		t.Fatalf("sun centre = %q", g)
 	}
 	if c := s.Color(x, y, scene.Box{}); c != scene.Yellow {

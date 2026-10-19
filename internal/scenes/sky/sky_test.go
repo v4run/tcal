@@ -155,7 +155,7 @@ func TestDayAndNightDraw(t *testing.T) {
 				if r != 0 {
 					n++
 				}
-				if r == 'O' {
+				if r == '█' { // only the sun's disc uses full blocks
 					sun = true
 				}
 			}
@@ -215,5 +215,24 @@ func TestTinyAndUnsetDoNotPanic(t *testing.T) {
 func TestIntervalAtLeast40ms(t *testing.T) {
 	if iv := newTest(10, 10).Interval(); iv < 40*time.Millisecond {
 		t.Fatalf("interval %v", iv)
+	}
+}
+
+func TestSunShimmers(t *testing.T) {
+	s := newTest(81, 30)
+	s.clouds = nil
+	s.SetTime(at(12, 0), time.Time{})
+	x, y := s.arcPos(arcFraction(at(12, 0)))
+	ray := func() rune { return s.Glyph(x-3, y-1, scene.Box{}) } // top-left diagonal ray
+	first := ray()
+	for range shimmerPeriod {
+		s.Tick()
+	}
+	if second := ray(); first == second || first == 0 || second == 0 {
+		t.Errorf("rays did not shimmer: %q then %q", first, second)
+	}
+	// The top ray stays on screen at noon, when the arc peaks.
+	if s.Glyph(x, y-1, scene.Box{}) != '|' {
+		t.Error("top ray clipped at noon")
 	}
 }

@@ -37,12 +37,29 @@ const synodicMonth = 29.530588853
 // refNewMoon is a known new moon used as the phase origin.
 var refNewMoon = time.Date(2000, time.January, 6, 18, 14, 0, 0, time.UTC)
 
-// sun is centred on its arc position; spaces are transparent.
-var sun = []string{
-	`\|/`,
-	`-O-`,
-	`/|\`,
+// sunFrames are a round disc with rays, alternating slowly so the rays
+// shimmer: the diagonal rays fade to dots. Spaces are transparent.
+var sunFrames = [2][]string{
+	{
+		`\  |  /`,
+		` ▄███▄ `,
+		`─ █████ ─`,
+		` ▀███▀ `,
+		`/  |  \`,
+	},
+	{
+		`·  |  ·`,
+		` ▄███▄ `,
+		`- █████ -`,
+		` ▀███▀ `,
+		`·  |  ·`,
+	},
 }
+
+const (
+	sunRows       = 5 // rows in each sun frame
+	shimmerPeriod = 8 // ticks per sun frame
+)
 
 // cloudShapes are drawn with their top-left at the cloud position.
 var cloudShapes = [][]string{
@@ -268,9 +285,14 @@ func (s *Scene) render() {
 	}
 	x, y := s.arcPos(arcFraction(s.now))
 	if IsDay(s.now) {
-		for r, row := range sun {
-			for c, ch := range []rune(row) {
-				s.set(x-1+c, y-1+r, ch, scene.Yellow)
+		// The disc sits one row below the arc point so the top ray is
+		// still on screen at noon, when the arc peaks at arcTop.
+		frame := sunFrames[(s.tick/shimmerPeriod)%2]
+		for r, row := range frame {
+			rs := []rune(row)
+			left := x - len(rs)/2
+			for c, ch := range rs {
+				s.set(left+c, y+1-sunRows/2+r, ch, scene.Yellow)
 			}
 		}
 		for _, cl := range s.clouds {
