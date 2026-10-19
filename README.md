@@ -122,7 +122,7 @@ tcal --bg seasons --bg-time 2026-10-31      # Halloween
 tcal --bg seasons --bg-time 2026-12-31T23:30   # New Year, near midnight
 ```
 
-If two events overlap, your birthday wins; otherwise the one with the shorter window does. With `--bg random`, a day with an active event picks `seasons` (if it is in the random pool) so the event is seen. Turn events off with `--events=false` or `events = false` in the config; `seasons` then behaves as it always did.
+If two events overlap, your birthday wins; otherwise the one with the shorter window does. With `--bg random`, a day with an active event picks `seasons` (if it is in the random pool) so the event is seen. Some scenes need room beside the calendar (roughly 100+ columns), so on a narrow terminal the background can be `seasons` with no visible scene. To avoid that, remove `seasons` from `[random] backgrounds`, or set `events = false`. Turn events off with `--events=false` or `events = false` in the config; `seasons` then behaves as it always did.
 
 Fixed-date events are computed. Moving dates (Sankranti, Lunar New Year, Holi, Vishu, Eid, Onam, Diwali) come from a lookup table of published calendars covering 2026-2040, with a few documented gaps: Vishu 2032-2040, Onam 2031-2040, Eid 2037 and Diwali 2037. In a gap year that event does not show; a missing date is preferred to a wrong one. Sources are cited in `internal/events/dates.go`.
 
