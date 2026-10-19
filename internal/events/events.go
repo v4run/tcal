@@ -126,7 +126,6 @@ func occurrences(year int, loc *time.Location, birthday *MonthDay) []Occurrence 
 	add := func(k Kind, start, end time.Time) { out = append(out, Occurrence{k, start, end}) }
 
 	add(NewYear, at(time.December, 31, 18), time.Date(year+1, time.January, 2, 0, 0, 0, 0, loc))
-	add(Sankranti, at(time.January, 14, 0), at(time.January, 16, 0))
 	add(Valentines, at(time.February, 14, 0), at(time.February, 15, 0))
 	add(IndependenceDay, at(time.August, 15, 0), at(time.August, 16, 0))
 	add(Halloween, at(time.October, 31, 0), at(time.November, 1, 0))
@@ -142,6 +141,7 @@ func occurrences(year int, loc *time.Location, birthday *MonthDay) []Occurrence 
 		end := at(s.end.m, s.end.d+after, 0)
 		add(k, start, end)
 	}
+	mv(Sankranti, 0, 2, 0)
 	mv(LunarNewYear, 0, 3, 0)
 	mv(Holi, -1, 1, 18)
 	mv(Vishu, 0, 1, 0)

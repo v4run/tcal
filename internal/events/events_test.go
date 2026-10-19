@@ -17,6 +17,7 @@ func useFixture(t *testing.T, f map[Kind]map[int]span) {
 
 func fixture() map[Kind]map[int]span {
 	return map[Kind]map[int]span{
+		Sankranti:    {2026: d(time.January, 14)},
 		LunarNewYear: {2026: d(time.February, 17)},
 		Holi:         {2026: d(time.March, 4)},
 		Vishu:        {2026: d(time.April, 14)},
