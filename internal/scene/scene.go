@@ -37,3 +37,24 @@ type Scene interface {
 type Clocked interface {
 	SetTime(now, shown time.Time)
 }
+
+// Color is a terminal palette color. Scenes use the 16-color ANSI palette
+// so backgrounds follow the user's terminal theme.
+type Color uint8
+
+const (
+	Default Color = iota // the terminal's foreground color
+	Red
+	Green
+	Yellow
+	Blue
+	Magenta
+	Cyan
+	White
+)
+
+// Colored is implemented by scenes that tint their glyphs. Color is only
+// called for cells where Glyph returned a rune, with the same arguments.
+type Colored interface {
+	Color(x, y int, b Box) Color
+}

@@ -43,7 +43,7 @@ func runeGrid(s string) [][]rune {
 func TestOverlay_NeverTouchesCalendarRegion(t *testing.T) {
 	const w, h = 100, 30
 	frame := testFrame(w, h)
-	got := overlay(frame, fullLife(w, h), w, h, true)
+	got := overlay(frame, fullLife(w, h), w, h, styleColor)
 
 	before, after := runeGrid(frame), runeGrid(got)
 	if len(after) != h {
@@ -83,7 +83,7 @@ func TestOverlay_NeverTouchesCalendarRegion(t *testing.T) {
 
 func TestOverlay_NoColorEmitsNoEscapes(t *testing.T) {
 	const w, h = 100, 30
-	got := overlay(testFrame(w, h), fullLife(w, h), w, h, false)
+	got := overlay(testFrame(w, h), fullLife(w, h), w, h, stylePlain)
 	if strings.Contains(got, "\x1b[2m") {
 		t.Error("faint escape emitted with color disabled")
 	}
@@ -94,7 +94,7 @@ func TestOverlay_NoColorEmitsNoEscapes(t *testing.T) {
 
 func TestOverlay_LeavesMismatchedFrameAlone(t *testing.T) {
 	frame := testFrame(30, 30) // too narrow: hint line, no centering
-	if got := overlay(frame, fullLife(30, 30), 30, 30, true); got != frame {
+	if got := overlay(frame, fullLife(30, 30), 30, 30, styleColor); got != frame {
 		t.Error("expected unpadded frame to be returned unchanged")
 	}
 }
@@ -186,6 +186,35 @@ func TestAllBackgrounds_NeverTouchCalendar(t *testing.T) {
 					}
 				}
 			}
+		}
+	}
+}
+
+func TestOverlay_ColorStyleTintsGlyphs(t *testing.T) {
+	const w, h = 100, 30
+	got := overlay(testFrame(w, h), fullLife(w, h), w, h, styleColor)
+	if !strings.Contains(got, faintOn+sgrColor(scene.Green)+"·") {
+		t.Error("expected dim green life cells")
+	}
+}
+
+func TestOverlay_FaintStyleIgnoresSceneColors(t *testing.T) {
+	const w, h = 100, 30
+	got := overlay(testFrame(w, h), fullLife(w, h), w, h, styleFaint)
+	if strings.Contains(got, sgrColor(scene.Green)) {
+		t.Error("mono background emitted a scene color")
+	}
+	if !strings.Contains(got, faintOn) {
+		t.Error("mono background is not dim")
+	}
+}
+
+func TestOverlay_ColorResetsAtSegmentEnd(t *testing.T) {
+	const w, h = 100, 30
+	got := overlay(testFrame(w, h), fullLife(w, h), w, h, styleColor)
+	for i, ln := range strings.Split(got, "\n") {
+		if strings.Contains(ln, sgrColor(scene.Green)) && !strings.Contains(ln, fgReset+faintOff) {
+			t.Fatalf("line %d leaves the color set", i)
 		}
 	}
 }

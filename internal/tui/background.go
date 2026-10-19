@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"maps"
 	"math/rand/v2"
 	"slices"
@@ -31,7 +32,25 @@ import (
 const (
 	faintOn  = "\x1b[2m"
 	faintOff = "\x1b[22m"
+	fgReset  = "\x1b[39m"
 )
+
+// bgStyle is how background glyphs are styled.
+type bgStyle int
+
+const (
+	stylePlain bgStyle = iota // no escapes at all (NO_COLOR, --no-color)
+	styleFaint                // dim, in the terminal's foreground color
+	styleColor                // dim, tinted by scenes that implement scene.Colored
+)
+
+// sgrColor returns the escape that selects c as the foreground color.
+func sgrColor(c scene.Color) string {
+	if c == scene.Default {
+		return fgReset
+	}
+	return fmt.Sprintf("\x1b[%dm", 30+int(c))
+}
 
 // backgrounds maps --bg names to scene constructors. Constructors receive
 // the initial terminal size; Resize is called again on every resize.
@@ -103,6 +122,8 @@ func (l *lifeScene) Glyph(x, y int, _ scene.Box) rune {
 	return 0
 }
 
+func (l *lifeScene) Color(int, int, scene.Box) scene.Color { return scene.Green }
+
 // runnerScene runs the container along the bottom of the screen, hiding
 // it entirely when the strip would overlap the calendar.
 type runnerScene struct {
@@ -125,10 +146,12 @@ func (d *runnerScene) Glyph(x, y int, b scene.Box) rune {
 	return d.s.Glyph(x, y)
 }
 
+func (d *runnerScene) Color(x, y int, _ scene.Box) scene.Color { return d.s.Color(x, y) }
+
 // overlay draws sc into the blank margins of frame, leaving the calendar's
 // bounding box (plus one cell of padding) untouched. frame must be exactly
 // w × h (as produced by render.Fit); otherwise it is returned unchanged.
-func overlay(frame string, sc scene.Scene, w, h int, color bool) string {
+func overlay(frame string, sc scene.Scene, w, h int, style bgStyle) string {
 	lines := strings.Split(frame, "\n")
 	if len(lines) != h {
 		return frame
@@ -153,7 +176,7 @@ func overlay(frame string, sc scene.Scene, w, h int, color bool) string {
 	if y0 < 0 {
 		empty := scene.Box{Y0: -1, Y1: -1}
 		for y := range lines {
-			lines[y] = cells(sc, y, 0, w, empty, color)
+			lines[y] = cells(sc, y, 0, w, empty, style)
 		}
 		return strings.Join(lines, "\n")
 	}
@@ -173,31 +196,47 @@ func overlay(frame string, sc scene.Scene, w, h int, color bool) string {
 
 	for y, ln := range lines {
 		if y < b.Y0 || y > b.Y1 {
-			lines[y] = cells(sc, y, 0, w, b, color)
+			lines[y] = cells(sc, y, 0, w, b, style)
 			continue
 		}
-		lines[y] = cells(sc, y, 0, b.X0, b, color) + ln[b.X0:len(ln)-(w-b.X1)] + cells(sc, y, b.X1, w, b, color)
+		lines[y] = cells(sc, y, 0, b.X0, b, style) + ln[b.X0:len(ln)-(w-b.X1)] + cells(sc, y, b.X1, w, b, style)
 	}
 	return strings.Join(lines, "\n")
 }
 
 // cells renders row y of sc over columns [from, to) as glyphs and spaces.
-func cells(sc scene.Scene, y, from, to int, b scene.Box, color bool) string {
+// Color escapes are emitted only when the color changes between glyphs.
+func cells(sc scene.Scene, y, from, to int, b scene.Box, style bgStyle) string {
 	if from >= to {
 		return ""
 	}
+	colored, _ := sc.(scene.Colored)
+	if style != styleColor {
+		colored = nil
+	}
 	var sb strings.Builder
-	if color {
+	if style != stylePlain {
 		sb.WriteString(faintOn)
 	}
+	cur := scene.Default
 	for x := from; x < to; x++ {
-		if r := sc.Glyph(x, y, b); r != 0 {
-			sb.WriteRune(r)
-		} else {
+		r := sc.Glyph(x, y, b)
+		if r == 0 {
 			sb.WriteByte(' ')
+			continue
 		}
+		if colored != nil {
+			if c := colored.Color(x, y, b); c != cur {
+				sb.WriteString(sgrColor(c))
+				cur = c
+			}
+		}
+		sb.WriteRune(r)
 	}
-	if color {
+	if cur != scene.Default {
+		sb.WriteString(fgReset)
+	}
+	if style != stylePlain {
 		sb.WriteString(faintOff)
 	}
 	return sb.String()

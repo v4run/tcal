@@ -15,6 +15,11 @@ type Model struct {
 	state render.State
 	opts  render.Options
 	bg    scene.Scene // nil unless an ambient background is enabled
+	// bgMono draws the background in the plain dim foreground color,
+	// ignoring scene colors.
+	bgMono bool
+	// bgOffset shifts the clock that time-aware backgrounds see.
+	bgOffset time.Duration
 }
 
 // New returns a Model initialized with the given state and options. Caller
@@ -32,11 +37,27 @@ func (m Model) WithBackground(name string) Model {
 	return m
 }
 
+// WithBackgroundMono draws the background without scene colors: dim, in
+// the terminal's foreground color.
+func (m Model) WithBackgroundMono() Model {
+	m.bgMono = true
+	return m
+}
+
+// WithBackgroundTime makes time-aware backgrounds behave as if the time
+// were t. The offset from the real clock is kept, so their time still
+// advances. The calendar itself keeps the real time.
+func (m Model) WithBackgroundTime(t time.Time) Model {
+	m.bgOffset = t.Sub(m.state.Now)
+	m.syncClock()
+	return m
+}
+
 // syncClock tells a time-aware background the current time and the month
 // being displayed.
 func (m Model) syncClock() {
 	if c, ok := m.bg.(scene.Clocked); ok {
-		c.SetTime(m.state.Now, m.state.Anchor)
+		c.SetTime(m.state.Now.Add(m.bgOffset), m.state.Anchor)
 	}
 }
 
@@ -120,7 +141,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 func (m Model) View() string {
 	out := render.Frame(m.state, m.opts)
 	if m.bg != nil {
-		out = overlay(out, m.bg, m.state.Width, m.state.Height, m.opts.Color)
+		out = overlay(out, m.bg, m.state.Width, m.state.Height, m.bgStyle())
 	}
 	return out
+}
+
+func (m Model) bgStyle() bgStyle {
+	switch {
+	case !m.opts.Color:
+		return stylePlain
+	case m.bgMono:
+		return styleFaint
+	}
+	return styleColor
 }

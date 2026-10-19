@@ -4,7 +4,11 @@
 // bushes.
 package runner
 
-import "math/rand/v2"
+import (
+	"math/rand/v2"
+
+	"github.com/v4run/tcal/internal/scene"
+)
 
 // Height is the number of rows the scene occupies at the bottom of the
 // screen: the ground line plus the sprite at peak jump.
@@ -118,6 +122,18 @@ func (s *Scene) Glyph(x, y int) rune {
 		return r
 	}
 	return s.bushGlyph(x, y)
+}
+
+// Color returns the palette color for the glyph at screen (x, y): a red
+// container, green bushes, and the ground in the default color.
+func (s *Scene) Color(x, y int) scene.Color {
+	switch {
+	case y == s.h-1:
+		return scene.Default
+	case s.spriteGlyph(x, y) != 0:
+		return scene.Red
+	}
+	return scene.Green
 }
 
 func (s *Scene) lift() int {

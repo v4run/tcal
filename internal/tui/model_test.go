@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/v4run/tcal/internal/render"
+	"github.com/v4run/tcal/internal/scene"
 )
 
 func newTestModel(anchor time.Time) Model {
@@ -165,5 +166,50 @@ func TestWithBackground_UnknownLeavesBackgroundOff(t *testing.T) {
 	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground("nope")
 	if m.bg != nil {
 		t.Fatal("unknown background name enabled a scene")
+	}
+}
+
+type clockSpy struct {
+	now, shown time.Time
+}
+
+func (c *clockSpy) Resize(int, int)                {}
+func (c *clockSpy) Tick()                          {}
+func (c *clockSpy) Interval() time.Duration        { return time.Second }
+func (c *clockSpy) Glyph(int, int, scene.Box) rune { return 0 }
+func (c *clockSpy) SetTime(now, shown time.Time)   { c.now, c.shown = now, shown }
+
+func TestWithBackgroundTime_ShiftsSceneClockOnly(t *testing.T) {
+	real := time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC)
+	m := newTestModel(real)
+	spy := &clockSpy{}
+	m.bg = spy
+	forced := time.Date(2024, 4, 23, 22, 30, 0, 0, time.UTC)
+	m = m.WithBackgroundTime(forced)
+	if !spy.now.Equal(forced) {
+		t.Fatalf("scene sees %v, want %v", spy.now, forced)
+	}
+	later := real.Add(10 * time.Second)
+	next, _ := m.Update(tickMsg(later))
+	if want := forced.Add(10 * time.Second); !spy.now.Equal(want) {
+		t.Errorf("after tick scene sees %v, want %v", spy.now, want)
+	}
+	if !next.(Model).state.Now.Equal(later) {
+		t.Error("calendar clock was shifted too")
+	}
+}
+
+func TestBgStyle(t *testing.T) {
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC))
+	m.opts.Color = true
+	if got := m.bgStyle(); got != styleColor {
+		t.Errorf("default style = %v, want color", got)
+	}
+	if got := m.WithBackgroundMono().bgStyle(); got != styleFaint {
+		t.Errorf("mono style = %v, want faint", got)
+	}
+	m.opts.Color = false
+	if got := m.bgStyle(); got != stylePlain {
+		t.Errorf("no-color style = %v, want plain", got)
 	}
 }

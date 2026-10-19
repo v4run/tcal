@@ -4,6 +4,8 @@ import (
 	"math/rand/v2"
 	"slices"
 	"testing"
+
+	"github.com/v4run/tcal/internal/scene"
 )
 
 func TestRunnerClearsEveryBushShape(t *testing.T) {
@@ -97,5 +99,21 @@ func TestSpriteDimensions(t *testing.T) {
 	}
 	if m := slices.Max(jumpArc); m != maxJump {
 		t.Fatalf("maxJump = %d, want max(jumpArc) = %d", maxJump, m)
+	}
+}
+
+func TestColor_ContainerBushesGround(t *testing.T) {
+	const w, h = 80, 20
+	s := New(w, h, rand.New(rand.NewPCG(1, 2)))
+	s.nextX = 1 << 30
+	s.bushes = []bush{{x: 40, shape: 3}}
+	if c := s.Color(0, h-1); c != scene.Default {
+		t.Errorf("ground color = %v, want default", c)
+	}
+	if c := s.Color(spriteX, h-2); c != scene.Red {
+		t.Errorf("container color = %v, want red", c)
+	}
+	if c := s.Color(40-s.offset+1, h-2); c != scene.Green {
+		t.Errorf("bush color = %v, want green", c)
 	}
 }

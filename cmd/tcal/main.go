@@ -60,6 +60,8 @@ func run(args []string, stdout, stderr *os.File) error {
 	withClock := fs.Bool("with-clock", false, "include block clock in print mode")
 	clockStyle := fs.String("clock-style", "block", "block|inline|boxed")
 	bgS := fs.String("bg", "none", "ambient background in live mode: none|random|"+strings.Join(tui.Backgrounds(), "|"))
+	bgColor := fs.Bool("bg-color", true, "tint the background; false draws it dim in the foreground color")
+	bgTimeS := fs.String("bg-time", "", "time seen by time-aware backgrounds: HH:MM, YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 	showVersion := fs.Bool("version", false, "print version and exit")
 
 	if err := fs.Parse(args); err != nil {
@@ -71,6 +73,10 @@ func run(args []string, stdout, stderr *os.File) error {
 	}
 
 	bg, err := parseBackground(*bgS)
+	if err != nil {
+		return err
+	}
+	bgTime, err := parseBgTime(*bgTimeS, time.Now())
 	if err != nil {
 		return err
 	}
@@ -90,6 +96,12 @@ func run(args []string, stdout, stderr *os.File) error {
 	model := tui.New(state, opts)
 	if bg != "" {
 		model = model.WithBackground(bg)
+	}
+	if !*bgColor {
+		model = model.WithBackgroundMono()
+	}
+	if *bgTimeS != "" {
+		model = model.WithBackgroundTime(bgTime)
 	}
 	prog := tea.NewProgram(model, tea.WithAltScreen())
 	_, err = prog.Run()
@@ -213,6 +225,27 @@ func parseBackground(s string) (string, error) {
 		return s, nil
 	}
 	return "", fmt.Errorf("unknown --bg %q (expected none|random|%s)", s, strings.Join(tui.Backgrounds(), "|"))
+}
+
+// parseBgTime parses --bg-time. A bare time keeps today's date; a bare date
+// keeps the current time of day.
+func parseBgTime(s string, now time.Time) (time.Time, error) {
+	if s == "" {
+		return now, nil
+	}
+	loc := now.Location()
+	if t, err := time.ParseInLocation("2006-01-02T15:04", s, loc); err == nil {
+		return t, nil
+	}
+	if t, err := time.ParseInLocation("2006-01-02", s, loc); err == nil {
+		h, m, sec := now.Clock()
+		return time.Date(t.Year(), t.Month(), t.Day(), h, m, sec, 0, loc), nil
+	}
+	if t, err := time.ParseInLocation("15:04", s, loc); err == nil {
+		y, mo, d := now.Date()
+		return time.Date(y, mo, d, t.Hour(), t.Minute(), 0, 0, loc), nil
+	}
+	return time.Time{}, fmt.Errorf(`invalid --bg-time %q: expected HH:MM, YYYY-MM-DD or YYYY-MM-DDTHH:MM`, s)
 }
 
 func resolveWidth(flagW int, f *os.File) int {
