@@ -118,14 +118,12 @@ func TestDino_DrawsGroundBelowCalendar(t *testing.T) {
 	const w, h = 100, 40
 	got := dinoScreen(w, h)
 	ground := string(got[h-1])
-	if strings.Count(ground, "▁")+strings.Count(ground, "▂") != w {
+	if strings.Count(ground, "▔")+strings.Count(ground, "▀") != w {
 		t.Errorf("bottom row is not a full ground line: %q", ground)
 	}
 	for y := 0; y < h-dino.Height; y++ {
-		for x, r := range got[y] {
-			if r == '▁' || r == '▂' {
-				t.Fatalf("ground glyph above the strip at (%d,%d)", x, y)
-			}
+		if strings.ContainsAny(string(got[y]), "▔▄") {
+			t.Fatalf("scene glyph above the strip on row %d: %q", y, string(got[y]))
 		}
 	}
 }

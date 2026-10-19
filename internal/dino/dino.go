@@ -1,51 +1,96 @@
 // Package dino implements a self-playing side-scroller, in the spirit of
 // Chrome's offline T-rex game, used as an ambient background in live mode.
 // A dino runs along the bottom of the screen and jumps over bushes.
+//
+// The scene is drawn on a pixel canvas where each terminal cell holds two
+// vertically stacked pixels (rendered with ▀ ▄ █), which keeps pixels
+// roughly square and lets jumps move half a row at a time.
 package dino
 
 import "math/rand/v2"
 
-// Height is the number of rows the scene occupies at the bottom of the screen.
-const Height = 1 + spriteRows + maxJump
+// Height is the number of rows the scene occupies at the bottom of the
+// screen: the ground line plus enough canvas for the sprite at peak jump.
+const Height = 1 + (spriteH+maxJump+1)/2
 
 // MinWidth is the narrowest screen the scene will draw on.
-const MinWidth = 30
+const MinWidth = 40
 
 const (
-	dinoX      = 4  // screen column of the sprite's left edge
-	spriteRows = 3  // sprite height
-	maxJump    = 3  // peak jump height, in rows
-	minGap     = 22 // minimum columns between bushes
-	gapSpread  = 40 // extra random columns between bushes
+	dinoX     = 4  // screen column of the sprite's left edge
+	minGap    = 40 // minimum columns between bushes
+	gapSpread = 50 // extra random columns between bushes
 )
 
-// Two running frames; legs alternate. Spaces are transparent.
-var sprites = [2][spriteRows]string{
+// Two running frames, as pixel art: '#' is solid, anything else is empty.
+var sprites = [2][]string{
 	{
-		"    ▄█▀█▄",
-		"▚▄▄███▀▀ ",
-		"  ▜▘ ▀▌  ",
+		"........######",
+		".......##.####",
+		".......#######",
+		"#......####...",
+		"#.....######..",
+		"##...####..#..",
+		"#########.....",
+		".#######......",
+		"..##..#.......",
+		"..#...##......",
 	},
 	{
-		"    ▄█▀█▄",
-		"▚▄▄███▀▀ ",
-		"  ▀▌ ▜▘  ",
+		"........######",
+		".......##.####",
+		".......#######",
+		"#......####...",
+		"#.....######..",
+		"##...####..#..",
+		"#########.....",
+		".#######......",
+		"..##..##......",
+		"..##...#......",
 	},
 }
 
-// jumpArc is the dino's height above the ground on each frame of a jump.
-var jumpArc = []int{1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 1}
+const (
+	spriteH = 10 // rows in each sprite frame
+	spriteW = 14 // columns in each sprite frame
+)
 
-// jumpLead is how many columns ahead of the sprite a bush must be for the
-// dino to take off. Tuned so every bush shape is cleared (see tests).
-const jumpLead = 1
+// jumpArc is the dino's height above the ground, in pixels, on each frame
+// of a jump. Heights are even so the sprite moves in whole rows; odd
+// heights re-split the art across cells and look garbled.
+var jumpArc = []int{2, 4, 4, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 4, 4, 2}
 
-// bushShapes are drawn bottom-aligned on the ground; spaces are transparent.
+const maxJump = 6 // max(jumpArc)
+
+// jumpLead is the distance from the sprite's right edge to a bush's left
+// edge at takeoff. It is negative because the head sits high: the bush may
+// already be under it. Tuned so every bush shape is cleared (see tests).
+const jumpLead = -4
+
+// bushShapes are pixel art drawn bottom-aligned on the ground.
 var bushShapes = [][]string{
-	{"▟▙"},
-	{"▟█▙"},
-	{" ▄ ", "▟█▙"},
-	{" ▄▖ ", "▟██▙"},
+	{
+		".##.",
+		"####",
+		"####",
+	},
+	{
+		"..##..",
+		".####.",
+		"######",
+		"######",
+	},
+	{
+		".##.###.",
+		"########",
+		"########",
+	},
+	{
+		"...##...",
+		".######.",
+		"########",
+		"########",
+	},
 }
 
 type bush struct {
@@ -97,7 +142,7 @@ func (s *Scene) Tick() {
 		}
 	}
 	if s.jump < 0 {
-		front := s.offset + dinoX + spriteWidth()
+		front := s.offset + dinoX + spriteW
 		for _, b := range s.bushes {
 			if b.x-front == jumpLead {
 				s.jump = 0
@@ -112,58 +157,53 @@ func (s *Scene) Glyph(x, y int) rune {
 	if x < 0 || x >= s.w || y < s.h-Height || y >= s.h {
 		return 0
 	}
-	ground := s.h - 1
-	if y == ground {
+	if y == s.h-1 {
 		return groundGlyph(s.offset + x)
 	}
-	if r := s.dinoGlyph(x, y); r != 0 {
-		return r
-	}
-	return s.bushGlyph(x, y)
+	// Canvas rows count up from the ground: row s.h-2 holds pixel
+	// heights 1 (top half) and 0 (bottom half).
+	ph := 2 * (s.h - 2 - y)
+	return halfBlock(s.pixel(x, ph+1), s.pixel(x, ph))
 }
 
-func (s *Scene) height() int {
+// pixel reports whether the pixel in screen column x, ph pixels above the
+// ground, is solid.
+func (s *Scene) pixel(x, ph int) bool {
+	return s.dinoPixel(x, ph) || s.bushPixel(x, ph)
+}
+
+func (s *Scene) lift() int {
 	if s.jump < 0 {
 		return 0
 	}
 	return jumpArc[s.jump]
 }
 
-func (s *Scene) dinoGlyph(x, y int) rune {
-	top := s.h - 1 - spriteRows - s.height()
-	row, col := y-top, x-dinoX
-	if row < 0 || row >= spriteRows || col < 0 {
-		return 0
-	}
-	frame := (s.running / 2) % 2
+func (s *Scene) dinoPixel(x, ph int) bool {
+	frame := (s.running / 3) % 2
 	if s.jump >= 0 {
 		frame = 0 // legs still mid-air
 	}
-	return cell(sprites[frame][row], col)
+	row := spriteH - 1 - (ph - s.lift())
+	return solid(sprites[frame], row, x-dinoX)
 }
 
-func (s *Scene) bushGlyph(x, y int) rune {
+func (s *Scene) bushPixel(x, ph int) bool {
 	wx := s.offset + x
 	for _, b := range s.bushes {
-		col := wx - b.x
-		if col < 0 || col >= bushWidth(b) {
-			continue
-		}
 		shape := bushShapes[b.shape]
-		row := y - (s.h - 1 - len(shape))
-		if row < 0 || row >= len(shape) {
-			continue
+		if solid(shape, len(shape)-1-ph, wx-b.x) {
+			return true
 		}
-		return cell(shape[row], col)
 	}
-	return 0
+	return false
 }
 
-// collides reports whether any dino cell overlaps a bush cell.
+// collides reports whether any dino pixel overlaps a bush pixel.
 func (s *Scene) collides() bool {
-	for y := s.h - Height; y < s.h-1; y++ {
-		for x := dinoX; x < dinoX+spriteWidth(); x++ {
-			if s.dinoGlyph(x, y) != 0 && s.bushGlyph(x, y) != 0 {
+	for ph := 0; ph < spriteH+maxJump; ph++ {
+		for x := dinoX; x < dinoX+spriteW; x++ {
+			if s.dinoPixel(x, ph) && s.bushPixel(x, ph) {
 				return true
 			}
 		}
@@ -171,24 +211,29 @@ func (s *Scene) collides() bool {
 	return false
 }
 
-// cell returns the rune at column col of row, treating spaces as empty.
-func cell(row string, col int) rune {
-	rs := []rune(row)
-	if col < 0 || col >= len(rs) || rs[col] == ' ' {
-		return 0
-	}
-	return rs[col]
+func solid(art []string, row, col int) bool {
+	return row >= 0 && row < len(art) && col >= 0 && col < len(art[row]) && art[row][col] == '#'
 }
 
-func spriteWidth() int { return len([]rune(sprites[0][0])) }
+func halfBlock(top, bottom bool) rune {
+	switch {
+	case top && bottom:
+		return '█'
+	case top:
+		return '▀'
+	case bottom:
+		return '▄'
+	}
+	return 0
+}
 
-func bushWidth(b bush) int { return len([]rune(bushShapes[b.shape][len(bushShapes[b.shape])-1])) }
+func bushWidth(b bush) int { return len(bushShapes[b.shape][0]) }
 
 // groundGlyph is a flat line with the occasional pebble, fixed per world column.
 func groundGlyph(wx int) rune {
 	h := uint32(wx) * 2654435761
-	if h>>24 < 12 {
-		return '▂'
+	if h>>24 < 16 {
+		return '▀'
 	}
-	return '▁'
+	return '▔'
 }

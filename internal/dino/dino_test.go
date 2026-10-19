@@ -2,6 +2,7 @@ package dino
 
 import (
 	"math/rand/v2"
+	"slices"
 	"testing"
 )
 
@@ -82,5 +83,21 @@ func TestNew_ZeroSizeIsSafe(t *testing.T) {
 	s.Tick()
 	if s.Glyph(0, 0) != 0 {
 		t.Error("zero-size scene drew a glyph")
+	}
+}
+
+func TestSpriteDimensions(t *testing.T) {
+	for f, frame := range sprites {
+		if len(frame) != spriteH {
+			t.Fatalf("frame %d has %d rows, want %d", f, len(frame), spriteH)
+		}
+		for r, row := range frame {
+			if len(row) != spriteW {
+				t.Fatalf("frame %d row %d has width %d, want %d", f, r, len(row), spriteW)
+			}
+		}
+	}
+	if m := slices.Max(jumpArc); m != maxJump {
+		t.Fatalf("maxJump = %d, want max(jumpArc) = %d", maxJump, m)
 	}
 }

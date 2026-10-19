@@ -88,7 +88,7 @@ func (d *dinoScene) Resize(w, h int) {
 }
 
 func (d *dinoScene) Tick()                   { d.s.Tick() }
-func (d *dinoScene) Interval() time.Duration { return 80 * time.Millisecond }
+func (d *dinoScene) Interval() time.Duration { return 40 * time.Millisecond }
 
 func (d *dinoScene) Glyph(x, y int, b box) rune {
 	if d.w < dino.MinWidth || b.y1 >= d.h-dino.Height {
