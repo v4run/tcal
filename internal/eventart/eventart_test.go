@@ -2,6 +2,7 @@ package eventart
 
 import (
 	"math/rand/v2"
+	"sort"
 	"testing"
 	"time"
 
@@ -355,5 +356,174 @@ func TestEid_MoonWhite(t *testing.T) {
 	}
 	if moon == 0 || lantern == 0 {
 		t.Errorf("moon cells %d, lantern cells %d", moon, lantern)
+	}
+}
+
+func TestKinds_AllThirteen(t *testing.T) {
+	if got := len(Kinds()); got != 13 {
+		t.Errorf("Kinds() has %d kinds, want 13: %v", got, Kinds())
+	}
+}
+
+// onamAt returns the Onam art at 120x40 on the given day of a days-long
+// occurrence, and the number of cells it draws.
+func onamAt(t *testing.T, day, days int) (Art, int) {
+	t.Helper()
+	start := time.Date(2026, time.August, 26, 0, 0, 0, 0, time.UTC)
+	occ := events.Occurrence{Kind: events.Onam, Start: start, End: start.AddDate(0, 0, days)}
+	a := newArt(t, events.Onam)
+	a.Resize(120, 40)
+	a.SetTime(start.AddDate(0, 0, day).Add(12*time.Hour), occ)
+	a.Tick()
+	n := 0
+	for y := 0; y < 40; y++ {
+		for x := 0; x < 120; x++ {
+			if r, _ := a.Cell(x, y, emptyBox); r != 0 {
+				n++
+			}
+		}
+	}
+	return a, n
+}
+
+// pookalamCells is the number of cells in the complete pookalam.
+func pookalamCells() int {
+	n := 0
+	for _, row := range pookalamRing {
+		for _, k := range row {
+			if k >= 0 {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func TestOnam_RingsGrowWithDay(t *testing.T) {
+	_, d0 := onamAt(t, 0, 10)
+	_, d4 := onamAt(t, 4, 10)
+	_, d9 := onamAt(t, 9, 10)
+	if !(d0 < d4 && d4 < d9) {
+		t.Errorf("cells by day: day0 %d, day4 %d, day9 %d; want strictly growing", d0, d4, d9)
+	}
+	if full := pookalamCells(); d9 != full {
+		t.Errorf("last day draws %d cells, want the full pookalam's %d", d9, full)
+	}
+}
+
+func TestOnam_NineAndElevenDayYears(t *testing.T) {
+	full := pookalamCells()
+	for _, days := range []int{9, 10, 11} {
+		for day := 0; day < days; day++ {
+			_, n := onamAt(t, day, days)
+			if last := day == days-1; last != (n == full) {
+				t.Errorf("%d-day Onam, day %d: %d cells, full is %d", days, day, n, full)
+			}
+		}
+	}
+}
+
+// snapshot returns the runes of the art's drawn cells that keep accepts, in
+// reading order.
+func snapshot(a Art, keep func(rune, scene.Color) bool) string {
+	bd := a.Bounds()
+	var s []rune
+	for y := bd.Y0; y < bd.Y0+bd.H; y++ {
+		for x := bd.X0; x < bd.X0+bd.W; x++ {
+			if r, c := a.Cell(x, y, emptyBox); r != 0 && keep(r, c) {
+				s = append(s, r)
+			}
+		}
+	}
+	return string(s)
+}
+
+func TestHalloween_BatsFlap(t *testing.T) {
+	a := newArt(t, events.Halloween)
+	a.Resize(120, 40)
+	a.Tick()
+	// Bat glyphs, ignoring where the bats are.
+	bats := func() string {
+		s := []rune(snapshot(a, func(_ rune, c scene.Color) bool { return c == scene.Default }))
+		sort.Slice(s, func(i, j int) bool { return s[i] < s[j] })
+		return string(s)
+	}
+	first := bats()
+	if first == "" {
+		t.Fatal("no bats drawn")
+	}
+	if p := snapshot(a, func(_ rune, c scene.Color) bool { return c == scene.Yellow }); p == "" {
+		t.Fatal("no pumpkin drawn")
+	}
+	for i := 0; i < 10; i++ {
+		a.Tick()
+		if bats() != first {
+			return
+		}
+	}
+	t.Error("no bat flapped within 10 ticks")
+}
+
+func TestBirthday_CandlesFlicker(t *testing.T) {
+	a := newArt(t, events.Birthday)
+	a.Resize(120, 40)
+	a.Tick()
+	bd := a.Bounds()
+	// The flames are the yellow cells in the cake's rows at the bottom.
+	flames := func() string {
+		var s []rune
+		for y := bd.Y0 + bd.H - cakeH; y < bd.Y0+bd.H; y++ {
+			for x := bd.X0; x < bd.X0+bd.W; x++ {
+				if r, c := a.Cell(x, y, emptyBox); r != 0 && c == scene.Yellow {
+					s = append(s, r)
+				}
+			}
+		}
+		return string(s)
+	}
+	first := flames()
+	if n := len([]rune(first)); n < 3 || n > 5 {
+		t.Fatalf("%d flames, want 3-5", n)
+	}
+	for i := 0; i < 10; i++ {
+		a.Tick()
+		if flames() != first {
+			return
+		}
+	}
+	t.Error("no candle flickered within 10 ticks")
+}
+
+func TestKites_HaveStrings(t *testing.T) {
+	a := newArt(t, events.Sankranti)
+	a.Resize(120, 40)
+	bd := a.Bounds()
+	for i := 0; i < 60; i++ {
+		a.Tick()
+		kites := 0
+		for y := bd.Y0; y < bd.Y0+bd.H-1; y++ {
+			for x := bd.X0; x < bd.X0+bd.W-1; x++ {
+				r, c := a.Cell(x, y, emptyBox)
+				r2, _ := a.Cell(x+1, y, emptyBox)
+				r3, _ := a.Cell(x, y+1, emptyBox)
+				if r != '/' || r2 != '\\' || r3 != '\\' || c == scene.Default {
+					continue
+				}
+				kites++
+				strung := false
+				for yy := y + 2; yy < bd.Y0+bd.H; yy++ {
+					if r, c := a.Cell(x, yy, emptyBox); r != 0 && c == scene.Default {
+						strung = true
+						break
+					}
+				}
+				if !strung {
+					t.Fatalf("tick %d: kite at %d,%d has no string below it", i, x, y)
+				}
+			}
+		}
+		if kites < 2 || kites > 4 {
+			t.Fatalf("tick %d: %d kites, want 2-4", i, kites)
+		}
 	}
 }

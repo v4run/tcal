@@ -144,3 +144,34 @@ func hangString(c *canvas, x, n, off int, col scene.Color) {
 		c.set(x, y, g, col)
 	}
 }
+
+// edgeMargin is the columns kept clear between a side region and the
+// screen's left or right edge.
+const edgeMargin = 2
+
+// edgeRegion is an rw×rh region against the left or right side of the
+// screen, edgeMargin columns in and one row clear of the top or bottom
+// edge, or empty when the screen cannot hold it.
+func edgeRegion(w, h, rw, rh int, right, bottom bool) Region {
+	if rw <= 0 || rh <= 0 || w < rw+2*edgeMargin || h < rh+2 {
+		return Region{}
+	}
+	r := Region{X0: edgeMargin, Y0: 1, W: rw, H: rh}
+	if right {
+		r.X0 = w - edgeMargin - rw
+	}
+	if bottom {
+		r.Y0 = h - 1 - rh
+	}
+	return r
+}
+
+// columnHeight is the height of a side column on an h-row screen: as tall
+// as the screen allows up to maxH, or 0 when that is under minH.
+func columnHeight(h, minH, maxH int) int {
+	ch := min(h-2, maxH)
+	if ch < minH {
+		return 0
+	}
+	return ch
+}

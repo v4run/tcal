@@ -39,6 +39,7 @@ func init() {
 
 func (n *newYear) Resize(w, h int) {
 	n.w, n.h = w, h
+	n.shot = false // the bursts are gone, so open with a fresh one
 	bd := n.Bounds()
 	n.c.reset(bd)
 	n.fw.resize(bd.W, bd.H)

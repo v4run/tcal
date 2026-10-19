@@ -35,7 +35,7 @@ type diwali struct {
 
 func init() {
 	arts[events.Diwali] = func(rng *rand.Rand) Art {
-		d := &diwali{rng: rng, fw: newFireworks(rng, 1, scene.Yellow, scene.Magenta, scene.Red)}
+		d := &diwali{rng: rng, fw: newFireworks(rng, 1, scene.Yellow, scene.Red)}
 		for i := range d.flames {
 			d.flames[i] = flameGlyphs[rng.IntN(len(flameGlyphs))]
 		}
