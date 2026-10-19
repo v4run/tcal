@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"maps"
 	"math/rand/v2"
+	"slices"
 	"strings"
 	"time"
 
@@ -10,15 +12,7 @@ import (
 
 	"github.com/v4run/tcal/internal/life"
 	"github.com/v4run/tcal/internal/runner"
-)
-
-// Background selects the ambient animation drawn behind the calendar.
-type Background int
-
-const (
-	BackgroundNone Background = iota
-	BackgroundLife
-	BackgroundContainer
+	"github.com/v4run/tcal/internal/scene"
 )
 
 const (
@@ -26,32 +20,31 @@ const (
 	faintOff = "\x1b[22m"
 )
 
-// box is the calendar's bounding box plus one cell of padding. Columns are
-// half-open [x0, x1); rows are inclusive [y0, y1]. Nothing is drawn inside.
-type box struct{ x0, x1, y0, y1 int }
-
-// scene is an ambient animation drawn into the blank margins of the frame.
-type scene interface {
-	Resize(w, h int)
-	Tick()
-	Interval() time.Duration
-	// Glyph returns the rune at screen (x, y), or 0 for empty. b is the
-	// region the calendar occupies, for scenes that need to avoid it wholesale.
-	Glyph(x, y int, b box) rune
-}
-
-func newScene(bg Background, w, h int) scene {
-	seed := uint64(time.Now().UnixNano())
-	rng := rand.New(rand.NewPCG(seed, seed>>32))
-	switch bg {
-	case BackgroundLife:
+// backgrounds maps --bg names to scene constructors. Constructors receive
+// the initial terminal size; Resize is called again on every resize.
+var backgrounds = map[string]func(w, h int, rng *rand.Rand) scene.Scene{
+	"life": func(w, h int, rng *rand.Rand) scene.Scene {
 		s := &lifeScene{rng: rng}
 		s.Resize(w, h)
 		return s
-	case BackgroundContainer:
+	},
+	"container": func(w, h int, rng *rand.Rand) scene.Scene {
 		return &runnerScene{s: runner.New(w, h, rng), w: w, h: h}
+	},
+}
+
+// Backgrounds returns the names accepted by WithBackground, sorted.
+func Backgrounds() []string {
+	return slices.Sorted(maps.Keys(backgrounds))
+}
+
+func newScene(name string, w, h int) scene.Scene {
+	ctor, ok := backgrounds[name]
+	if !ok {
+		return nil
 	}
-	return nil
+	seed := uint64(time.Now().UnixNano())
+	return ctor(w, h, rand.New(rand.NewPCG(seed, seed>>32)))
 }
 
 // lifeScene runs Game of Life over the whole screen; a resize reseeds it.
@@ -68,7 +61,7 @@ func (l *lifeScene) Resize(w, h int) {
 func (l *lifeScene) Tick()                   { l.g.Tick() }
 func (l *lifeScene) Interval() time.Duration { return 250 * time.Millisecond }
 
-func (l *lifeScene) Glyph(x, y int, _ box) rune {
+func (l *lifeScene) Glyph(x, y int, _ scene.Box) rune {
 	if l.g.Alive(x, y) {
 		return '·'
 	}
@@ -90,8 +83,8 @@ func (d *runnerScene) Resize(w, h int) {
 func (d *runnerScene) Tick()                   { d.s.Tick() }
 func (d *runnerScene) Interval() time.Duration { return 40 * time.Millisecond }
 
-func (d *runnerScene) Glyph(x, y int, b box) rune {
-	if d.w < runner.MinWidth || b.y1 >= d.h-runner.Height {
+func (d *runnerScene) Glyph(x, y int, b scene.Box) rune {
+	if d.w < runner.MinWidth || b.Y1 >= d.h-runner.Height {
 		return 0
 	}
 	return d.s.Glyph(x, y)
@@ -100,7 +93,7 @@ func (d *runnerScene) Glyph(x, y int, b box) rune {
 // overlay draws sc into the blank margins of frame, leaving the calendar's
 // bounding box (plus one cell of padding) untouched. frame must be exactly
 // w × h (as produced by render.Fit); otherwise it is returned unchanged.
-func overlay(frame string, sc scene, w, h int, color bool) string {
+func overlay(frame string, sc scene.Scene, w, h int, color bool) string {
 	lines := strings.Split(frame, "\n")
 	if len(lines) != h {
 		return frame
@@ -123,7 +116,7 @@ func overlay(frame string, sc scene, w, h int, color bool) string {
 	}
 
 	if y0 < 0 {
-		empty := box{y0: -1, y1: -1}
+		empty := scene.Box{Y0: -1, Y1: -1}
 		for y := range lines {
 			lines[y] = cells(sc, y, 0, w, empty, color)
 		}
@@ -141,20 +134,20 @@ func overlay(frame string, sc scene, w, h int, color bool) string {
 	}
 
 	// Pad the box by one cell on every side.
-	b := box{x0: max(x0-1, 0), x1: min(x1+1, w), y0: y0 - 1, y1: y1 + 1}
+	b := scene.Box{X0: max(x0-1, 0), X1: min(x1+1, w), Y0: y0 - 1, Y1: y1 + 1}
 
 	for y, ln := range lines {
-		if y < b.y0 || y > b.y1 {
+		if y < b.Y0 || y > b.Y1 {
 			lines[y] = cells(sc, y, 0, w, b, color)
 			continue
 		}
-		lines[y] = cells(sc, y, 0, b.x0, b, color) + ln[b.x0:len(ln)-(w-b.x1)] + cells(sc, y, b.x1, w, b, color)
+		lines[y] = cells(sc, y, 0, b.X0, b, color) + ln[b.X0:len(ln)-(w-b.X1)] + cells(sc, y, b.X1, w, b, color)
 	}
 	return strings.Join(lines, "\n")
 }
 
 // cells renders row y of sc over columns [from, to) as glyphs and spaces.
-func cells(sc scene, y, from, to int, b box, color bool) string {
+func cells(sc scene.Scene, y, from, to int, b scene.Box, color bool) string {
 	if from >= to {
 		return ""
 	}

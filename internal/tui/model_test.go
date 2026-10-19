@@ -130,7 +130,7 @@ func TestUpdate_TickAdvancesNow(t *testing.T) {
 }
 
 func TestWithLife_ResizeRebuildsGrid(t *testing.T) {
-	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground(BackgroundLife)
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground("life")
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	g := next.(Model).bg.(*lifeScene).g
 	if g.Width() != 120 || g.Height() != 40 {
@@ -139,10 +139,10 @@ func TestWithLife_ResizeRebuildsGrid(t *testing.T) {
 }
 
 func TestUpdate_BackgroundTickRearms(t *testing.T) {
-	for _, bg := range []Background{BackgroundLife, BackgroundContainer} {
+	for _, bg := range []string{"life", "container"} {
 		m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground(bg)
 		if _, cmd := m.Update(bgTickMsg{}); cmd == nil {
-			t.Errorf("background %d: expected bgTickMsg to schedule the next tick", bg)
+			t.Errorf("background %s: expected bgTickMsg to schedule the next tick", bg)
 		}
 	}
 }

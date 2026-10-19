@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"time"
 
@@ -58,7 +59,7 @@ func run(args []string, stdout, stderr *os.File) error {
 	width := fs.Int("width", 0, "terminal width (print mode only)")
 	withClock := fs.Bool("with-clock", false, "include block clock in print mode")
 	clockStyle := fs.String("clock-style", "block", "block|inline|boxed")
-	bgS := fs.String("bg", "none", "ambient background in live mode: none|life|container")
+	bgS := fs.String("bg", "none", "ambient background in live mode: none|"+strings.Join(tui.Backgrounds(), "|"))
 	showVersion := fs.Bool("version", false, "print version and exit")
 
 	if err := fs.Parse(args); err != nil {
@@ -87,7 +88,7 @@ func run(args []string, stdout, stderr *os.File) error {
 
 	state.Width, state.Height = currentTermSize(stdout)
 	model := tui.New(state, opts)
-	if bg != tui.BackgroundNone {
+	if bg != "" {
 		model = model.WithBackground(bg)
 	}
 	prog := tea.NewProgram(model, tea.WithAltScreen())
@@ -203,16 +204,15 @@ func parseClockStyle(s string) (render.ClockStyle, error) {
 	return 0, fmt.Errorf("unknown --clock-style %q (expected block|inline|boxed)", s)
 }
 
-func parseBackground(s string) (tui.Background, error) {
-	switch strings.ToLower(s) {
-	case "none":
-		return tui.BackgroundNone, nil
-	case "life":
-		return tui.BackgroundLife, nil
-	case "container":
-		return tui.BackgroundContainer, nil
+func parseBackground(s string) (string, error) {
+	s = strings.ToLower(s)
+	if s == "none" {
+		return "", nil
 	}
-	return 0, fmt.Errorf("unknown --bg %q (expected none|life|container)", s)
+	if slices.Contains(tui.Backgrounds(), s) {
+		return s, nil
+	}
+	return "", fmt.Errorf("unknown --bg %q (expected none|%s)", s, strings.Join(tui.Backgrounds(), "|"))
 }
 
 func resolveWidth(flagW int, f *os.File) int {

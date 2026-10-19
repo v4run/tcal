@@ -7,13 +7,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/v4run/tcal/internal/render"
+	"github.com/v4run/tcal/internal/scene"
 )
 
 // Model is the Bubble Tea model for the live calendar widget.
 type Model struct {
 	state render.State
 	opts  render.Options
-	bg    scene // nil unless an ambient background is enabled
+	bg    scene.Scene // nil unless an ambient background is enabled
 }
 
 // New returns a Model initialized with the given state and options. Caller
@@ -23,10 +24,20 @@ func New(state render.State, opts render.Options) Model {
 	return Model{state: state, opts: opts}
 }
 
-// WithBackground enables an ambient background, sized to the current state.
-func (m Model) WithBackground(bg Background) Model {
-	m.bg = newScene(bg, m.state.Width, m.state.Height)
+// WithBackground enables the named ambient background (see Backgrounds),
+// sized to the current state. Unknown names leave the background off.
+func (m Model) WithBackground(name string) Model {
+	m.bg = newScene(name, m.state.Width, m.state.Height)
+	m.syncClock()
 	return m
+}
+
+// syncClock tells a time-aware background the current time and the month
+// being displayed.
+func (m Model) syncClock() {
+	if c, ok := m.bg.(scene.Clocked); ok {
+		c.SetTime(m.state.Now, m.state.Anchor)
+	}
 }
 
 // tickMsg is sent every second to advance the clock.
@@ -53,6 +64,12 @@ func (m Model) Init() tea.Cmd {
 
 // Update is the message handler.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	next.syncClock()
+	return next, cmd
+}
+
+func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.state.Width = msg.Width
@@ -76,7 +93,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
