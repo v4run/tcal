@@ -16,9 +16,10 @@ import (
 type Region struct{ X0, Y0, W, H int }
 
 // Touches reports whether the region overlaps the box by at least one cell.
-// An empty box (Y0 == -1) never touches.
+// An empty box (Y0 == Y1 == -1) never touches; a real box starting at row 0
+// also has Y0 == -1 (one row above it) but a non-negative Y1.
 func (r Region) Touches(b scene.Box) bool {
-	if b.Y0 == -1 || r.W <= 0 || r.H <= 0 {
+	if (b.Y0 == -1 && b.Y1 == -1) || r.W <= 0 || r.H <= 0 {
 		return false
 	}
 	return b.X0 < r.X0+r.W && b.X1 > r.X0 && b.Y0 < r.Y0+r.H && b.Y1 >= r.Y0

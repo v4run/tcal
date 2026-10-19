@@ -527,3 +527,30 @@ func TestKites_HaveStrings(t *testing.T) {
 		}
 	}
 }
+
+// A calendar starting at screen row 0 has Y0 == -1 (one row above it) but a
+// real Y1; it must hide the art, not be mistaken for the empty box.
+func TestAllArt_HidesWhenCalendarAtRowZero(t *testing.T) {
+	for _, k := range Kinds() {
+		a := newArt(t, k)
+		a.Resize(120, 40)
+		bd := a.Bounds()
+		if bd.W == 0 || bd.H == 0 {
+			t.Fatalf("%v: empty bounds", k)
+		}
+		box := scene.Box{X0: bd.X0, X1: bd.X0 + bd.W, Y0: -1, Y1: bd.Y0 + bd.H}
+		if !bd.Touches(box) {
+			t.Fatalf("%v: row-0 box %+v does not touch %+v", k, box, bd)
+		}
+		for i := 0; i < 5; i++ {
+			a.Tick()
+			for y := 0; y < 40; y++ {
+				for x := 0; x < 120; x++ {
+					if r, _ := a.Cell(x, y, box); r != 0 {
+						t.Fatalf("%v: drew %q at %d,%d beside a row-0 calendar", k, r, x, y)
+					}
+				}
+			}
+		}
+	}
+}
