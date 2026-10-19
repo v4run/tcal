@@ -19,17 +19,16 @@ const (
 	gapSpread = 50 // extra random columns between bushes
 )
 
-// sprite is a shipping container in oblique 3D; spaces are transparent.
+// sprite is a ribbed shipping container, side on; spaces are transparent.
 var sprite = []string{
-	" ┌────────────┐",
-	"┌┴───────────┐│",
-	"│┃┃┃┃┃┃┃┃┃┃┃┃├┘",
-	"└────────────┘ ",
+	"┌────────────┐",
+	"│┃┃┃┃┃┃┃┃┃┃┃┃│",
+	"└────────────┘",
 }
 
 const (
-	spriteH = 4  // rows in sprite
-	spriteW = 15 // columns in sprite
+	spriteH = 3  // rows in sprite
+	spriteW = 14 // columns in sprite
 )
 
 // jumpArc is the sprite's height above the ground, in rows, on each frame

@@ -65,7 +65,7 @@ After any change to layout/centering code, run through:
 - [ ] Run in a 40×10 terminal — "too narrow" hint appears at the top.
 - [ ] `tcal --bg life` — dim cells animate in the margins only, never inside the calendar/clock box; resize reseeds.
 - [ ] `NO_COLOR=1 tcal --bg life` — cells render as plain `·` with no escapes.
-- [ ] `tcal --bg container` in a tall terminal — a 3D shipping container slides along the bottom and hops every bush; shrink the window until the strip would touch the calendar and it disappears.
+- [ ] `tcal --bg container` in a tall terminal — a shipping container slides along the bottom and hops every bush; shrink the window until the strip would touch the calendar and it disappears.
 - [ ] `tcal --date 2026-13` — exits non-zero with a one-line error.
 
 ## License
