@@ -2,14 +2,19 @@
 // used as an ambient background in live mode. The season follows the month
 // the calendar is showing (northern hemisphere): snow in winter, drifting
 // petals in spring, blinking fireflies in summer and swaying leaves in
-// autumn.
+// autumn. With events enabled, a holiday's art is drawn over the particles
+// while that holiday is active; the event follows the real (shifted) time,
+// not the shown month.
 package seasons
 
 import (
 	"math"
+	mrand "math/rand"
 	"math/rand/v2"
 	"time"
 
+	"github.com/v4run/tcal/internal/eventart"
+	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/scene"
 )
 
@@ -80,6 +85,12 @@ type Scene struct {
 	colors []scene.Color // parallel to buf
 	tick   int
 	rng    *rand.Rand
+
+	events   bool             // holiday events enabled
+	birthday *events.MonthDay // nil: no birthday event
+	event    events.Kind      // valid when hasEvent
+	hasEvent bool
+	art      eventart.Art // nil when no event is active or it has no art
 }
 
 // New returns a w×h scene that draws randomness from rng. Nothing is drawn
@@ -96,7 +107,19 @@ func (s *Scene) Resize(w, h int) {
 	s.buf = make([]rune, s.w*s.h)
 	s.colors = make([]scene.Color, s.w*s.h)
 	s.reset()
+	if s.art != nil {
+		s.art.Resize(s.w, s.h)
+	}
 }
+
+// EnableEvents turns on holiday events, including the birthday if non-nil.
+func (s *Scene) EnableEvents(birthday *events.MonthDay) {
+	s.events = true
+	s.birthday = birthday
+}
+
+// Event returns the active holiday event, if any.
+func (s *Scene) Event() (events.Kind, bool) { return s.event, s.hasEvent }
 
 // Interval is the delay between Ticks.
 func (s *Scene) Interval() time.Duration { return interval }
@@ -104,27 +127,57 @@ func (s *Scene) Interval() time.Duration { return interval }
 // Season returns the season currently drawn.
 func (s *Scene) Season() Season { return s.season }
 
-// SetTime switches the season to that of the shown month. now is ignored.
-func (s *Scene) SetTime(_, shown time.Time) {
+// SetTime switches the season to that of the shown month and, with events
+// enabled, the holiday event to the one active at now.
+func (s *Scene) SetTime(now, shown time.Time) {
 	if se := SeasonOf(shown.Month()); se != s.season {
 		s.season = se
 		s.reset()
 	}
+	if !s.events {
+		return
+	}
+	occ, ok := events.Active(now, s.birthday)
+	if ok != s.hasEvent || occ.Kind != s.event {
+		s.event, s.hasEvent = occ.Kind, ok
+		s.art = nil
+		if ok {
+			s.art = eventart.New(occ.Kind, mrand.New(mrand.NewSource(int64(s.rng.Uint64()))))
+		}
+		if s.art != nil {
+			s.art.Resize(s.w, s.h)
+		}
+	}
+	if s.art != nil {
+		s.art.SetTime(now, occ)
+	}
 }
 
-// Glyph returns the rune drawn at screen (x, y), or 0 for empty.
-func (s *Scene) Glyph(x, y int, _ scene.Box) rune {
+// Glyph returns the rune drawn at screen (x, y), or 0 for empty. Event art
+// covers the particles.
+func (s *Scene) Glyph(x, y int, b scene.Box) rune {
 	if x < 0 || y < 0 || x >= s.w || y >= s.h {
 		return 0
+	}
+	if s.art != nil {
+		if r, _ := s.art.Cell(x, y, b); r != 0 {
+			return r
+		}
 	}
 	return s.buf[y*s.w+x]
 }
 
-// Color returns the tint of the glyph at (x, y): white snow, magenta
-// petals, yellow fireflies, and red or yellow leaves.
-func (s *Scene) Color(x, y int, _ scene.Box) scene.Color {
+// Color returns the tint of the glyph at (x, y): the event art's color
+// where it draws, otherwise white snow, magenta petals, yellow fireflies,
+// and red or yellow leaves.
+func (s *Scene) Color(x, y int, b scene.Box) scene.Color {
 	if x < 0 || y < 0 || x >= s.w || y >= s.h {
 		return scene.Default
+	}
+	if s.art != nil {
+		if r, c := s.art.Cell(x, y, b); r != 0 {
+			return c
+		}
 	}
 	return s.colors[y*s.w+x]
 }
@@ -180,9 +233,12 @@ func (s *Scene) spawn(y float64) particle {
 	return p
 }
 
-// Tick moves every particle one step.
+// Tick moves every particle one step and advances the event art.
 func (s *Scene) Tick() {
 	s.tick++
+	if s.art != nil {
+		s.art.Tick()
+	}
 	for i := range s.ps {
 		p := &s.ps[i]
 		switch s.season {

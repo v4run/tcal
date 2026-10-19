@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/life"
 	"github.com/v4run/tcal/internal/runner"
 	"github.com/v4run/tcal/internal/scene"
@@ -52,30 +53,46 @@ func sgrColor(c scene.Color) string {
 	return fmt.Sprintf("\x1b[%dm", 30+int(c))
 }
 
+// BackgroundOptions configures the ambient background.
+type BackgroundOptions struct {
+	// Events shows holiday scenes in the seasons background.
+	Events bool
+	// Birthday adds a birthday event when non-nil.
+	Birthday *events.MonthDay
+	// RandomPool lists the backgrounds Random picks from; nil means all.
+	RandomPool []string
+}
+
 // backgrounds maps --bg names to scene constructors. Constructors receive
 // the initial terminal size; Resize is called again on every resize.
-var backgrounds = map[string]func(w, h int, rng *rand.Rand) scene.Scene{
-	"life": func(w, h int, rng *rand.Rand) scene.Scene {
+var backgrounds = map[string]func(w, h int, rng *rand.Rand, o BackgroundOptions) scene.Scene{
+	"life": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
 		s := &lifeScene{rng: rng}
 		s.Resize(w, h)
 		return s
 	},
-	"container": func(w, h int, rng *rand.Rand) scene.Scene {
+	"container": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
 		return &runnerScene{s: runner.New(w, h, rng), w: w, h: h}
 	},
-	"rain":      func(w, h int, rng *rand.Rand) scene.Scene { return rain.New(w, h, rng) },
-	"starfield": func(w, h int, rng *rand.Rand) scene.Scene { return starfield.New(w, h, rng) },
-	"aquarium":  func(w, h int, rng *rand.Rand) scene.Scene { return aquarium.New(w, h, rng) },
-	"lava":      func(w, h int, rng *rand.Rand) scene.Scene { return lava.New(w, h, rng) },
-	"flow":      func(w, h int, rng *rand.Rand) scene.Scene { return flow.New(w, h, rng) },
-	"langton":   func(w, h int, rng *rand.Rand) scene.Scene { return langton.New(w, h, rng) },
-	"automaton": func(w, h int, rng *rand.Rand) scene.Scene { return automaton.New(w, h, rng) },
-	"sky":       func(w, h int, rng *rand.Rand) scene.Scene { return sky.New(w, h, rng) },
-	"seasons":   func(w, h int, rng *rand.Rand) scene.Scene { return seasons.New(w, h, rng) },
-	"hourglass": func(w, h int, rng *rand.Rand) scene.Scene { return hourglass.New(w, h, rng) },
-	"harbor":    func(w, h int, rng *rand.Rand) scene.Scene { return harbor.New(w, h, rng) },
-	"train":     func(w, h int, rng *rand.Rand) scene.Scene { return train.New(w, h, rng) },
-	"ants":      func(w, h int, rng *rand.Rand) scene.Scene { return ants.New(w, h, rng) },
+	"rain":      func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return rain.New(w, h, rng) },
+	"starfield": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return starfield.New(w, h, rng) },
+	"aquarium":  func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return aquarium.New(w, h, rng) },
+	"lava":      func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return lava.New(w, h, rng) },
+	"flow":      func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return flow.New(w, h, rng) },
+	"langton":   func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return langton.New(w, h, rng) },
+	"automaton": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return automaton.New(w, h, rng) },
+	"sky":       func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return sky.New(w, h, rng) },
+	"seasons": func(w, h int, rng *rand.Rand, o BackgroundOptions) scene.Scene {
+		s := seasons.New(w, h, rng)
+		if o.Events {
+			s.EnableEvents(o.Birthday)
+		}
+		return s
+	},
+	"hourglass": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return hourglass.New(w, h, rng) },
+	"harbor":    func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return harbor.New(w, h, rng) },
+	"train":     func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return train.New(w, h, rng) },
+	"ants":      func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return ants.New(w, h, rng) },
 }
 
 // Random is the background name that picks one of Backgrounds at startup.
@@ -87,18 +104,33 @@ func Backgrounds() []string {
 	return slices.Sorted(maps.Keys(backgrounds))
 }
 
-func newScene(name string, w, h int) scene.Scene {
+// newScene builds the named background. For Random it draws uniformly from
+// o.RandomPool (all backgrounds when nil), except that seasons is chosen
+// whenever events are on, seasons is in the pool and an event is active at
+// bgNow.
+func newScene(name string, w, h int, o BackgroundOptions, bgNow time.Time) scene.Scene {
 	seed := uint64(time.Now().UnixNano())
 	rng := rand.New(rand.NewPCG(seed, seed>>32))
 	if name == Random {
-		names := Backgrounds()
-		name = names[rng.IntN(len(names))]
+		pool := o.RandomPool
+		if pool == nil {
+			pool = Backgrounds()
+		}
+		if len(pool) == 0 {
+			return nil
+		}
+		name = pool[rng.IntN(len(pool))]
+		if o.Events && slices.Contains(pool, "seasons") {
+			if _, ok := events.Active(bgNow, o.Birthday); ok {
+				name = "seasons"
+			}
+		}
 	}
 	ctor, ok := backgrounds[name]
 	if !ok {
 		return nil
 	}
-	return ctor(w, h, rng)
+	return ctor(w, h, rng, o)
 }
 
 // lifeScene runs Game of Life over the whole screen; a resize reseeds it.

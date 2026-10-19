@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"regexp"
 	"strings"
@@ -9,10 +10,15 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/v4run/tcal/internal/eventart"
+	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/life"
 	"github.com/v4run/tcal/internal/render"
 	"github.com/v4run/tcal/internal/runner"
 	"github.com/v4run/tcal/internal/scene"
+	"github.com/v4run/tcal/internal/scenes/lava"
+	"github.com/v4run/tcal/internal/scenes/rain"
+	"github.com/v4run/tcal/internal/scenes/seasons"
 )
 
 func fullLife(w, h int) scene.Scene {
@@ -109,7 +115,7 @@ func runnerModel(w, h int) Model {
 }
 
 func runnerScreen(w, h int) [][]rune {
-	m := runnerModel(w, h).WithBackground("container")
+	m := runnerModel(w, h).WithBackground("container", BackgroundOptions{})
 	for i := 0; i < 60; i++ {
 		m.bg.Tick()
 	}
@@ -145,6 +151,34 @@ func TestRunner_HiddenWhenNoRoomBelowCalendar(t *testing.T) {
 	}
 }
 
+// assertCalendarIntact fails t when any cell of plain's padded content box
+// differs in got, or when a row of got is not plain's width.
+func assertCalendarIntact(t *testing.T, label string, plain, got [][]rune) {
+	t.Helper()
+	h, w := len(plain), len(plain[0])
+	y0, y1, x0, x1 := h, -1, w, -1
+	for y, row := range plain {
+		for x, r := range row {
+			if r != ' ' {
+				y0, y1 = min(y0, y), max(y1, y)
+				x0, x1 = min(x0, x), max(x1, x)
+			}
+		}
+	}
+	for y := max(y0-1, 0); y <= min(y1+1, h-1); y++ {
+		for x := max(x0-1, 0); x <= min(x1+1, w-1); x++ {
+			if got[y][x] != plain[y][x] {
+				t.Fatalf("%s: cell (%d,%d) changed %q -> %q", label, x, y, plain[y][x], got[y][x])
+			}
+		}
+	}
+	for y, row := range got {
+		if len(row) != w {
+			t.Fatalf("%s: row %d width %d, want %d", label, y, len(row), w)
+		}
+	}
+}
+
 // Every registered background must leave the calendar's padded box intact,
 // at several terminal sizes, across many ticks.
 func TestAllBackgrounds_NeverTouchCalendar(t *testing.T) {
@@ -157,37 +191,99 @@ func TestAllBackgrounds_NeverTouchCalendar(t *testing.T) {
 			if len(plain) != h {
 				continue // frame does not fit; overlay is a no-op
 			}
-			y0, y1, x0, x1 := h, -1, w, -1
-			for y, row := range plain {
-				for x, r := range row {
-					if r != ' ' {
-						y0, y1 = min(y0, y), max(y1, y)
-						x0, x1 = min(x0, x), max(x1, x)
-					}
-				}
-			}
-			m = m.WithBackground(name)
+			m = m.WithBackground(name, BackgroundOptions{})
 			for i := 0; i < 120; i++ {
 				next, _ := m.Update(bgTickMsg{})
 				m = next.(Model)
 				if i%20 != 0 {
 					continue
 				}
-				got := runeGrid(m.View())
-				for y := max(y0-1, 0); y <= min(y1+1, h-1); y++ {
-					for x := max(x0-1, 0); x <= min(x1+1, w-1); x++ {
-						if got[y][x] != plain[y][x] {
-							t.Fatalf("%s %dx%d tick %d: cell (%d,%d) changed %q -> %q", name, w, h, i, x, y, plain[y][x], got[y][x])
-						}
-					}
-				}
-				for y, row := range got {
-					if len(row) != w {
-						t.Fatalf("%s %dx%d: row %d width %d", name, w, h, y, len(row))
-					}
-				}
+				assertCalendarIntact(t, fmt.Sprintf("%s %dx%d tick %d", name, w, h, i), plain, runeGrid(m.View()))
 			}
 		}
+	}
+}
+
+// Every event with art, shown in seasons, leaves the calendar's padded box
+// intact.
+func TestAllEvents_NeverTouchCalendar(t *testing.T) {
+	const w, h = 100, 40
+	bday := &events.MonthDay{Month: time.May, Day: 17}
+	hasArt := map[events.Kind]bool{}
+	for _, k := range eventart.Kinds() {
+		hasArt[k] = true
+	}
+	tested := 0
+	for _, occ := range events.Occurrences(2026, bday) {
+		if !hasArt[occ.Kind] {
+			continue
+		}
+		tested++
+		m := localModel(w, h)
+		plain := runeGrid(render.Frame(m.state, m.opts))
+		if len(plain) != h {
+			t.Fatalf("frame has %d lines, want %d", len(plain), h)
+		}
+		m = m.WithBackgroundTime(occ.Start.Add(time.Hour)).
+			WithBackground("seasons", BackgroundOptions{Events: true, Birthday: bday})
+		if k, ok := m.bg.(*seasons.Scene).Event(); !ok || k != occ.Kind {
+			t.Fatalf("%v: active event %v, %v", occ.Kind, k, ok)
+		}
+		for i := 0; i < 100; i++ {
+			next, _ := m.Update(bgTickMsg{})
+			m = next.(Model)
+		}
+		assertCalendarIntact(t, occ.Kind.String(), plain, runeGrid(m.View()))
+	}
+	if tested == 0 {
+		t.Fatal("no event with art was tested")
+	}
+}
+
+// localModel is runnerModel with its clock in the local zone, as in the
+// real app, so events are judged by local dates.
+func localModel(w, h int) Model {
+	m := runnerModel(w, h)
+	m.state.Now = m.state.Now.Local()
+	return m
+}
+
+func pick(t *testing.T, o BackgroundOptions, bgTime time.Time) scene.Scene {
+	t.Helper()
+	m := localModel(100, 40).WithBackgroundTime(bgTime).WithBackground(Random, o)
+	if m.bg == nil {
+		t.Fatal("random picked nothing")
+	}
+	return m.bg
+}
+
+func TestRandom_PoolOnly(t *testing.T) {
+	o := BackgroundOptions{RandomPool: []string{"rain", "lava"}}
+	day := time.Date(2026, time.April, 1, 12, 0, 0, 0, time.Local)
+	for range 200 {
+		switch bg := pick(t, o, day).(type) {
+		case *rain.Scene, *lava.Scene:
+		default:
+			t.Fatalf("picked %T outside the pool", bg)
+		}
+	}
+}
+
+func TestRandom_EventDayPicksSeasons(t *testing.T) {
+	o := BackgroundOptions{Events: true, RandomPool: []string{"rain", "seasons"}}
+	xmas := time.Date(2026, time.December, 25, 12, 0, 0, 0, time.Local)
+	for range 50 {
+		if bg, ok := pick(t, o, xmas).(*seasons.Scene); !ok {
+			t.Fatalf("picked %T on an event day, want seasons", bg)
+		}
+	}
+}
+
+func TestRandom_EventDayWithoutSeasonsInPool(t *testing.T) {
+	o := BackgroundOptions{Events: true, RandomPool: []string{"rain"}}
+	xmas := time.Date(2026, time.December, 25, 12, 0, 0, 0, time.Local)
+	if bg, ok := pick(t, o, xmas).(*rain.Scene); !ok {
+		t.Fatalf("picked %T, want rain", bg)
 	}
 }
 
@@ -226,7 +322,7 @@ func TestAllBackgrounds_ColorWellFormed(t *testing.T) {
 	sgr := regexp.MustCompile(`\x1b\[(3[1-7]|39)m`)
 	for _, name := range Backgrounds() {
 		m := runnerModel(100, 40)
-		m = m.WithBackground(name)
+		m = m.WithBackground(name, BackgroundOptions{})
 		if _, ok := m.bg.(scene.Colored); !ok {
 			t.Errorf("%s does not implement scene.Colored", name)
 			continue

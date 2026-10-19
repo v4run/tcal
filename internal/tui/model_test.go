@@ -131,7 +131,7 @@ func TestUpdate_TickAdvancesNow(t *testing.T) {
 }
 
 func TestWithLife_ResizeRebuildsGrid(t *testing.T) {
-	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground("life")
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground("life", BackgroundOptions{})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	g := next.(Model).bg.(*lifeScene).g
 	if g.Width() != 120 || g.Height() != 40 {
@@ -141,7 +141,7 @@ func TestWithLife_ResizeRebuildsGrid(t *testing.T) {
 
 func TestUpdate_BackgroundTickRearms(t *testing.T) {
 	for _, bg := range []string{"life", "container"} {
-		m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground(bg)
+		m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground(bg, BackgroundOptions{})
 		if _, cmd := m.Update(bgTickMsg{}); cmd == nil {
 			t.Errorf("background %s: expected bgTickMsg to schedule the next tick", bg)
 		}
@@ -156,14 +156,14 @@ func TestView_WithoutBackgroundMatchesFrame(t *testing.T) {
 }
 
 func TestWithBackground_RandomPicksARegisteredScene(t *testing.T) {
-	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground(Random)
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground(Random, BackgroundOptions{})
 	if m.bg == nil {
 		t.Fatal("random background left the background off")
 	}
 }
 
 func TestWithBackground_UnknownLeavesBackgroundOff(t *testing.T) {
-	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground("nope")
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground("nope", BackgroundOptions{})
 	if m.bg != nil {
 		t.Fatal("unknown background name enabled a scene")
 	}

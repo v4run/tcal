@@ -62,6 +62,7 @@ func run(args []string, stdout, stderr *os.File) error {
 	bgS := fs.String("bg", "none", "ambient background in live mode: none|random|"+strings.Join(tui.Backgrounds(), "|"))
 	bgColor := fs.Bool("bg-color", true, "tint the background; false draws it dim in the foreground color")
 	bgTimeS := fs.String("bg-time", "", "time seen by time-aware backgrounds: HH:MM, YYYY-MM-DD or YYYY-MM-DDTHH:MM")
+	showEvents := fs.Bool("events", true, "show holiday scenes in the seasons background")
 	showVersion := fs.Bool("version", false, "print version and exit")
 
 	if err := fs.Parse(args); err != nil {
@@ -94,14 +95,15 @@ func run(args []string, stdout, stderr *os.File) error {
 
 	state.Width, state.Height = currentTermSize(stdout)
 	model := tui.New(state, opts)
+	// The background time must be set first: Random consults it.
+	if *bgTimeS != "" {
+		model = model.WithBackgroundTime(bgTime)
+	}
 	if bg != "" {
-		model = model.WithBackground(bg)
+		model = model.WithBackground(bg, tui.BackgroundOptions{Events: *showEvents})
 	}
 	if !*bgColor {
 		model = model.WithBackgroundMono()
-	}
-	if *bgTimeS != "" {
-		model = model.WithBackgroundTime(bgTime)
 	}
 	prog := tea.NewProgram(model, tea.WithAltScreen())
 	_, err = prog.Run()

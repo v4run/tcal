@@ -30,9 +30,11 @@ func New(state render.State, opts render.Options) Model {
 }
 
 // WithBackground enables the named ambient background (see Backgrounds),
-// sized to the current state. Unknown names leave the background off.
-func (m Model) WithBackground(name string) Model {
-	m.bg = newScene(name, m.state.Width, m.state.Height)
+// sized to the current state and configured by o. Unknown names leave the
+// background off. Call WithBackgroundTime first: Random consults the
+// shifted time to prefer seasons on event days.
+func (m Model) WithBackground(name string, o BackgroundOptions) Model {
+	m.bg = newScene(name, m.state.Width, m.state.Height, o, m.state.Now.Add(m.bgOffset))
 	m.syncClock()
 	return m
 }
@@ -46,7 +48,8 @@ func (m Model) WithBackgroundMono() Model {
 
 // WithBackgroundTime makes time-aware backgrounds behave as if the time
 // were t. The offset from the real clock is kept, so their time still
-// advances. The calendar itself keeps the real time.
+// advances. The calendar itself keeps the real time. Call it before
+// WithBackground, so Random's choice sees the shifted time.
 func (m Model) WithBackgroundTime(t time.Time) Model {
 	m.bgOffset = t.Sub(m.state.Now)
 	m.syncClock()
