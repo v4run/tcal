@@ -3,6 +3,7 @@ module github.com/v4run/tcal
 go 1.26.2
 
 require (
+	github.com/BurntSushi/toml v1.4.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/ansi v0.10.1

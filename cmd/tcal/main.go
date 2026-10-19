@@ -4,15 +4,19 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
 
+	"github.com/v4run/tcal/internal/config"
+	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/printout"
 	"github.com/v4run/tcal/internal/render"
 	"github.com/v4run/tcal/internal/tui"
@@ -44,7 +48,56 @@ func main() {
 
 var errVersion = errors.New("--version")
 
+// runConfig is everything run needs after flags and config are resolved.
+type runConfig struct {
+	state  render.State
+	opts   render.Options
+	print  bool
+	width  int
+	bg     string
+	bgOpts tui.BackgroundOptions
+	bgMono bool
+	bgTime *time.Time // nil when --bg-time is unset
+}
+
+// configForbidden lists flags the config file may never set.
+var configForbidden = []string{"date", "year", "print", "bg-time", "version", "config"}
+
 func run(args []string, stdout, stderr *os.File) error {
+	rc, err := configure(args, stderr, time.Now())
+	if err != nil {
+		if errors.Is(err, errVersion) {
+			fmt.Fprintln(stdout, "tcal", versionString())
+		}
+		return err
+	}
+
+	if rc.print {
+		rc.state.Height = 0
+		rc.state.Width = resolveWidth(rc.width, stdout)
+		return printout.Run(rc.state, rc.opts, stdout)
+	}
+
+	rc.state.Width, rc.state.Height = currentTermSize(stdout)
+	model := tui.New(rc.state, rc.opts)
+	// The background time must be set first: Random consults it.
+	if rc.bgTime != nil {
+		model = model.WithBackgroundTime(*rc.bgTime)
+	}
+	if rc.bg != "" {
+		model = model.WithBackground(rc.bg, rc.bgOpts)
+	}
+	if rc.bgMono {
+		model = model.WithBackgroundMono()
+	}
+	prog := tea.NewProgram(model, tea.WithAltScreen())
+	_, err = prog.Run()
+	return err
+}
+
+// configure parses args, layers the config file under them (flags win) and
+// validates everything.
+func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error) {
 	fs := flag.NewFlagSet("tcal", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 
@@ -63,51 +116,113 @@ func run(args []string, stdout, stderr *os.File) error {
 	bgColor := fs.Bool("bg-color", true, "tint the background; false draws it dim in the foreground color")
 	bgTimeS := fs.String("bg-time", "", "time seen by time-aware backgrounds: HH:MM, YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 	showEvents := fs.Bool("events", true, "show holiday scenes in the seasons background")
+	configPath := fs.String("config", "", "config file (default ~/.config/tcal/config.toml)")
 	showVersion := fs.Bool("version", false, "print version and exit")
 
 	if err := fs.Parse(args); err != nil {
-		return err
+		return runConfig{}, err
 	}
 	if *showVersion {
-		fmt.Fprintln(stdout, "tcal", versionString())
-		return errVersion
+		return runConfig{}, errVersion
+	}
+
+	setOnCLI := map[string]bool{}
+	var allowed []string
+	fs.Visit(func(f *flag.Flag) { setOnCLI[f.Name] = true })
+	fs.VisitAll(func(f *flag.Flag) {
+		if !slices.Contains(configForbidden, f.Name) {
+			allowed = append(allowed, f.Name)
+		}
+	})
+
+	path, mustExist := *configPath, true
+	if path == "" {
+		path, mustExist = config.DefaultPath(), false
+	}
+	cfg, err := config.Load(path, mustExist, allowed)
+	if err != nil {
+		return runConfig{}, err
+	}
+
+	validators := map[string]func(string) error{
+		"layout":      func(s string) error { _, err := parseLayout(s); return err },
+		"week-start":  func(s string) error { _, err := parseWeekStart(s); return err },
+		"highlight":   func(s string) error { _, err := parseHighlight(s); return err },
+		"clock-style": func(s string) error { _, err := parseClockStyle(s); return err },
+		"bg":          func(s string) error { _, err := parseBackground(s); return err },
+		"no-color":    func(s string) error { _, err := strconv.ParseBool(s); return err },
+		"with-clock":  func(s string) error { _, err := strconv.ParseBool(s); return err },
+		"bg-color":    func(s string) error { _, err := strconv.ParseBool(s); return err },
+		"events":      func(s string) error { _, err := strconv.ParseBool(s); return err },
+		"months":      func(s string) error { _, err := strconv.Atoi(s); return err },
+		"width":       func(s string) error { _, err := strconv.Atoi(s); return err },
+	}
+	keys := make([]string, 0, len(cfg.Flags))
+	for k := range cfg.Flags {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		if setOnCLI[k] {
+			continue
+		}
+		v := cfg.Flags[k]
+		if check, ok := validators[k]; ok {
+			if err := check(v); err != nil {
+				return runConfig{}, fmt.Errorf("config %s: %s = %s: %w", cfg.Path, k, v, err)
+			}
+		}
+		if err := fs.Set(k, v); err != nil {
+			return runConfig{}, fmt.Errorf("config %s: %s = %s: %w", cfg.Path, k, v, err)
+		}
+	}
+
+	bgOpts := tui.BackgroundOptions{Events: *showEvents}
+	if cfg.RandomPool != nil {
+		known := tui.Backgrounds()
+		for _, name := range cfg.RandomPool {
+			if !slices.Contains(known, name) {
+				return runConfig{}, fmt.Errorf("config %s: random.backgrounds: unknown background %q (expected %s)", cfg.Path, name, strings.Join(known, "|"))
+			}
+		}
+		bgOpts.RandomPool = cfg.RandomPool
+	}
+	if cfg.Birthday != "" {
+		md, err := events.ParseBirthday(cfg.Birthday)
+		if err != nil {
+			return runConfig{}, fmt.Errorf("config %s: birthday: %w", cfg.Path, err)
+		}
+		bgOpts.Birthday = &md
 	}
 
 	bg, err := parseBackground(*bgS)
 	if err != nil {
-		return err
+		return runConfig{}, err
 	}
-	bgTime, err := parseBgTime(*bgTimeS, time.Now())
-	if err != nil {
-		return err
+	var bgTime *time.Time
+	if *bgTimeS != "" {
+		t, err := parseBgTime(*bgTimeS, now)
+		if err != nil {
+			return runConfig{}, err
+		}
+		bgTime = &t
 	}
 
 	state, opts, err := buildState(*layout, *date, *year, *months, *weekStart, *highlight, *clockStyle, *noColor, *withClock)
 	if err != nil {
-		return err
+		return runConfig{}, err
 	}
 
-	if *print {
-		state.Height = 0
-		state.Width = resolveWidth(*width, stdout)
-		return printout.Run(state, opts, stdout)
-	}
-
-	state.Width, state.Height = currentTermSize(stdout)
-	model := tui.New(state, opts)
-	// The background time must be set first: Random consults it.
-	if *bgTimeS != "" {
-		model = model.WithBackgroundTime(bgTime)
-	}
-	if bg != "" {
-		model = model.WithBackground(bg, tui.BackgroundOptions{Events: *showEvents})
-	}
-	if !*bgColor {
-		model = model.WithBackgroundMono()
-	}
-	prog := tea.NewProgram(model, tea.WithAltScreen())
-	_, err = prog.Run()
-	return err
+	return runConfig{
+		state:  state,
+		opts:   opts,
+		print:  *print,
+		width:  *width,
+		bg:     bg,
+		bgOpts: bgOpts,
+		bgMono: !*bgColor,
+		bgTime: bgTime,
+	}, nil
 }
 
 func buildState(layoutS, dateS string, year, months int, weekStartS, highlightS, clockStyleS string, noColor, withClock bool) (render.State, render.Options, error) {
