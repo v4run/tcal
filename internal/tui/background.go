@@ -1,26 +1,106 @@
 package tui
 
 import (
+	"math/rand/v2"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/v4run/tcal/internal/dino"
 	"github.com/v4run/tcal/internal/life"
 )
 
+// Background selects the ambient animation drawn behind the calendar.
+type Background int
+
 const (
-	lifeGlyph = "·"
-	faintOn   = "\x1b[2m"
-	faintOff  = "\x1b[22m"
+	BackgroundNone Background = iota
+	BackgroundLife
+	BackgroundDino
 )
 
-// overlayLife draws the live cells of g into the blank margins of frame.
-// The calendar's bounding box, plus one cell of padding, is left untouched.
-// frame must be exactly g.Width() × g.Height() (as produced by render.Fit);
-// otherwise it is returned unchanged.
-func overlayLife(frame string, g *life.Grid, color bool) string {
-	w, h := g.Width(), g.Height()
+const (
+	faintOn  = "\x1b[2m"
+	faintOff = "\x1b[22m"
+)
+
+// box is the calendar's bounding box plus one cell of padding. Columns are
+// half-open [x0, x1); rows are inclusive [y0, y1]. Nothing is drawn inside.
+type box struct{ x0, x1, y0, y1 int }
+
+// scene is an ambient animation drawn into the blank margins of the frame.
+type scene interface {
+	Resize(w, h int)
+	Tick()
+	Interval() time.Duration
+	// Glyph returns the rune at screen (x, y), or 0 for empty. b is the
+	// region the calendar occupies, for scenes that need to avoid it wholesale.
+	Glyph(x, y int, b box) rune
+}
+
+func newScene(bg Background, w, h int) scene {
+	seed := uint64(time.Now().UnixNano())
+	rng := rand.New(rand.NewPCG(seed, seed>>32))
+	switch bg {
+	case BackgroundLife:
+		s := &lifeScene{rng: rng}
+		s.Resize(w, h)
+		return s
+	case BackgroundDino:
+		return &dinoScene{s: dino.New(w, h, rng), w: w, h: h}
+	}
+	return nil
+}
+
+// lifeScene runs Game of Life over the whole screen; a resize reseeds it.
+type lifeScene struct {
+	g   *life.Grid
+	rng *rand.Rand
+}
+
+func (l *lifeScene) Resize(w, h int) {
+	l.g = life.New(w, h, l.rng)
+	l.g.Seed()
+}
+
+func (l *lifeScene) Tick()                   { l.g.Tick() }
+func (l *lifeScene) Interval() time.Duration { return 250 * time.Millisecond }
+
+func (l *lifeScene) Glyph(x, y int, _ box) rune {
+	if l.g.Alive(x, y) {
+		return '·'
+	}
+	return 0
+}
+
+// dinoScene runs the dino along the bottom of the screen, hiding it
+// entirely when the strip would overlap the calendar.
+type dinoScene struct {
+	s    *dino.Scene
+	w, h int
+}
+
+func (d *dinoScene) Resize(w, h int) {
+	d.w, d.h = w, h
+	d.s.Resize(w, h)
+}
+
+func (d *dinoScene) Tick()                   { d.s.Tick() }
+func (d *dinoScene) Interval() time.Duration { return 80 * time.Millisecond }
+
+func (d *dinoScene) Glyph(x, y int, b box) rune {
+	if d.w < dino.MinWidth || b.y1 >= d.h-dino.Height {
+		return 0
+	}
+	return d.s.Glyph(x, y)
+}
+
+// overlay draws sc into the blank margins of frame, leaving the calendar's
+// bounding box (plus one cell of padding) untouched. frame must be exactly
+// w × h (as produced by render.Fit); otherwise it is returned unchanged.
+func overlay(frame string, sc scene, w, h int, color bool) string {
 	lines := strings.Split(frame, "\n")
 	if len(lines) != h {
 		return frame
@@ -43,8 +123,9 @@ func overlayLife(frame string, g *life.Grid, color bool) string {
 	}
 
 	if y0 < 0 {
+		empty := box{y0: -1, y1: -1}
 		for y := range lines {
-			lines[y] = cells(g, y, 0, w, color)
+			lines[y] = cells(sc, y, 0, w, empty, color)
 		}
 		return strings.Join(lines, "\n")
 	}
@@ -60,37 +141,36 @@ func overlayLife(frame string, g *life.Grid, color bool) string {
 	}
 
 	// Pad the box by one cell on every side.
-	y0, y1 = y0-1, y1+1
-	x0, x1 = max(x0-1, 0), min(x1+1, w)
+	b := box{x0: max(x0-1, 0), x1: min(x1+1, w), y0: y0 - 1, y1: y1 + 1}
 
 	for y, ln := range lines {
-		if y < y0 || y > y1 {
-			lines[y] = cells(g, y, 0, w, color)
+		if y < b.y0 || y > b.y1 {
+			lines[y] = cells(sc, y, 0, w, b, color)
 			continue
 		}
-		lines[y] = cells(g, y, 0, x0, color) + ln[x0:len(ln)-(w-x1)] + cells(g, y, x1, w, color)
+		lines[y] = cells(sc, y, 0, b.x0, b, color) + ln[b.x0:len(ln)-(w-b.x1)] + cells(sc, y, b.x1, w, b, color)
 	}
 	return strings.Join(lines, "\n")
 }
 
-// cells renders row y of g over columns [from, to) as glyphs and spaces.
-func cells(g *life.Grid, y, from, to int, color bool) string {
+// cells renders row y of sc over columns [from, to) as glyphs and spaces.
+func cells(sc scene, y, from, to int, b box, color bool) string {
 	if from >= to {
 		return ""
 	}
-	var b strings.Builder
+	var sb strings.Builder
 	if color {
-		b.WriteString(faintOn)
+		sb.WriteString(faintOn)
 	}
 	for x := from; x < to; x++ {
-		if g.Alive(x, y) {
-			b.WriteString(lifeGlyph)
+		if r := sc.Glyph(x, y, b); r != 0 {
+			sb.WriteRune(r)
 		} else {
-			b.WriteByte(' ')
+			sb.WriteByte(' ')
 		}
 	}
 	if color {
-		b.WriteString(faintOff)
+		sb.WriteString(faintOff)
 	}
-	return b.String()
+	return sb.String()
 }

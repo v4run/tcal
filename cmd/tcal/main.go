@@ -58,7 +58,7 @@ func run(args []string, stdout, stderr *os.File) error {
 	width := fs.Int("width", 0, "terminal width (print mode only)")
 	withClock := fs.Bool("with-clock", false, "include block clock in print mode")
 	clockStyle := fs.String("clock-style", "block", "block|inline|boxed")
-	lifeBG := fs.Bool("life", false, "Game of Life ambient background (live mode only)")
+	bgS := fs.String("bg", "none", "ambient background in live mode: none|life|dino")
 	showVersion := fs.Bool("version", false, "print version and exit")
 
 	if err := fs.Parse(args); err != nil {
@@ -67,6 +67,11 @@ func run(args []string, stdout, stderr *os.File) error {
 	if *showVersion {
 		fmt.Fprintln(stdout, "tcal", versionString())
 		return errVersion
+	}
+
+	bg, err := parseBackground(*bgS)
+	if err != nil {
+		return err
 	}
 
 	state, opts, err := buildState(*layout, *date, *year, *months, *weekStart, *highlight, *clockStyle, *noColor, *withClock)
@@ -82,8 +87,8 @@ func run(args []string, stdout, stderr *os.File) error {
 
 	state.Width, state.Height = currentTermSize(stdout)
 	model := tui.New(state, opts)
-	if *lifeBG {
-		model = model.WithLife()
+	if bg != tui.BackgroundNone {
+		model = model.WithBackground(bg)
 	}
 	prog := tea.NewProgram(model, tea.WithAltScreen())
 	_, err = prog.Run()
@@ -196,6 +201,18 @@ func parseClockStyle(s string) (render.ClockStyle, error) {
 		return render.ClockBoxed, nil
 	}
 	return 0, fmt.Errorf("unknown --clock-style %q (expected block|inline|boxed)", s)
+}
+
+func parseBackground(s string) (tui.Background, error) {
+	switch strings.ToLower(s) {
+	case "none":
+		return tui.BackgroundNone, nil
+	case "life":
+		return tui.BackgroundLife, nil
+	case "dino":
+		return tui.BackgroundDino, nil
+	}
+	return 0, fmt.Errorf("unknown --bg %q (expected none|life|dino)", s)
 }
 
 func resolveWidth(flagW int, f *os.File) int {

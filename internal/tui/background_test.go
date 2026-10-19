@@ -8,18 +8,19 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/v4run/tcal/internal/dino"
 	"github.com/v4run/tcal/internal/life"
 	"github.com/v4run/tcal/internal/render"
 )
 
-func fullGrid(w, h int) *life.Grid {
+func fullLife(w, h int) scene {
 	g := life.New(w, h, rand.New(rand.NewPCG(1, 2)))
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			g.Set(x, y, true)
 		}
 	}
-	return g
+	return &lifeScene{g: g}
 }
 
 func testFrame(width, height int) string {
@@ -38,10 +39,10 @@ func runeGrid(s string) [][]rune {
 	return out
 }
 
-func TestOverlayLife_NeverTouchesCalendarRegion(t *testing.T) {
+func TestOverlay_NeverTouchesCalendarRegion(t *testing.T) {
 	const w, h = 100, 30
 	frame := testFrame(w, h)
-	got := overlayLife(frame, fullGrid(w, h), true)
+	got := overlay(frame, fullLife(w, h), w, h, true)
 
 	before, after := runeGrid(frame), runeGrid(got)
 	if len(after) != h {
@@ -79,9 +80,9 @@ func TestOverlayLife_NeverTouchesCalendarRegion(t *testing.T) {
 	}
 }
 
-func TestOverlayLife_NoColorEmitsNoEscapes(t *testing.T) {
+func TestOverlay_NoColorEmitsNoEscapes(t *testing.T) {
 	const w, h = 100, 30
-	got := overlayLife(testFrame(w, h), fullGrid(w, h), false)
+	got := overlay(testFrame(w, h), fullLife(w, h), w, h, false)
 	if strings.Contains(got, "\x1b[2m") {
 		t.Error("faint escape emitted with color disabled")
 	}
@@ -90,9 +91,56 @@ func TestOverlayLife_NoColorEmitsNoEscapes(t *testing.T) {
 	}
 }
 
-func TestOverlayLife_LeavesMismatchedFrameAlone(t *testing.T) {
+func TestOverlay_LeavesMismatchedFrameAlone(t *testing.T) {
 	frame := testFrame(30, 30) // too narrow: hint line, no centering
-	if got := overlayLife(frame, fullGrid(30, 30), true); got != frame {
+	if got := overlay(frame, fullLife(30, 30), 30, 30, true); got != frame {
 		t.Error("expected unpadded frame to be returned unchanged")
+	}
+}
+
+func dinoModel(w, h int) Model {
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC))
+	m.state.Width, m.state.Height = w, h
+	m.opts.WithClock = true
+	m.opts.Color = true
+	return m
+}
+
+func dinoScreen(w, h int) [][]rune {
+	m := dinoModel(w, h).WithBackground(BackgroundDino)
+	for i := 0; i < 60; i++ {
+		m.bg.Tick()
+	}
+	return runeGrid(m.View())
+}
+
+func TestDino_DrawsGroundBelowCalendar(t *testing.T) {
+	const w, h = 100, 40
+	got := dinoScreen(w, h)
+	ground := string(got[h-1])
+	if strings.Count(ground, "▁")+strings.Count(ground, "▂") != w {
+		t.Errorf("bottom row is not a full ground line: %q", ground)
+	}
+	for y := 0; y < h-dino.Height; y++ {
+		for x, r := range got[y] {
+			if r == '▁' || r == '▂' {
+				t.Fatalf("ground glyph above the strip at (%d,%d)", x, y)
+			}
+		}
+	}
+}
+
+func TestDino_HiddenWhenNoRoomBelowCalendar(t *testing.T) {
+	const w, h = 100, 24 // calendar + block clock fit, but not the dino strip
+	m := dinoModel(w, h)
+	plain := runeGrid(render.Frame(m.state, m.opts))
+	if len(plain) != h {
+		t.Fatalf("frame has %d lines, want %d: test must exercise the overlay path", len(plain), h)
+	}
+	got := dinoScreen(w, h)
+	for y := range got {
+		if string(got[y]) != string(plain[y]) {
+			t.Fatalf("row %d changed: %q", y, string(got[y]))
+		}
 	}
 }

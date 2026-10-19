@@ -130,24 +130,26 @@ func TestUpdate_TickAdvancesNow(t *testing.T) {
 }
 
 func TestWithLife_ResizeRebuildsGrid(t *testing.T) {
-	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithLife()
+	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground(BackgroundLife)
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	g := next.(Model).life
+	g := next.(Model).bg.(*lifeScene).g
 	if g.Width() != 120 || g.Height() != 40 {
 		t.Errorf("grid is %dx%d, want 120x40", g.Width(), g.Height())
 	}
 }
 
-func TestUpdate_LifeTickRearms(t *testing.T) {
-	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithLife()
-	if _, cmd := m.Update(lifeTickMsg{}); cmd == nil {
-		t.Error("expected lifeTickMsg to schedule the next tick")
+func TestUpdate_BackgroundTickRearms(t *testing.T) {
+	for _, bg := range []Background{BackgroundLife, BackgroundDino} {
+		m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground(bg)
+		if _, cmd := m.Update(bgTickMsg{}); cmd == nil {
+			t.Errorf("background %d: expected bgTickMsg to schedule the next tick", bg)
+		}
 	}
 }
 
-func TestView_WithoutLifeMatchesFrame(t *testing.T) {
+func TestView_WithoutBackgroundMatchesFrame(t *testing.T) {
 	m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC))
 	if got, want := m.View(), render.Frame(m.state, m.opts); got != want {
-		t.Error("View differs from render.Frame with life disabled")
+		t.Error("View differs from render.Frame with no background")
 	}
 }

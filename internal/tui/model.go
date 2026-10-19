@@ -2,12 +2,10 @@
 package tui
 
 import (
-	"math/rand/v2"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/v4run/tcal/internal/life"
 	"github.com/v4run/tcal/internal/render"
 )
 
@@ -15,7 +13,7 @@ import (
 type Model struct {
 	state render.State
 	opts  render.Options
-	life  *life.Grid // nil unless the Game of Life background is enabled
+	bg    scene // nil unless an ambient background is enabled
 }
 
 // New returns a Model initialized with the given state and options. Caller
@@ -25,17 +23,10 @@ func New(state render.State, opts render.Options) Model {
 	return Model{state: state, opts: opts}
 }
 
-// WithLife enables the Game of Life background, sized to the current state.
-func (m Model) WithLife() Model {
-	m.life = newLife(m.state.Width, m.state.Height)
+// WithBackground enables an ambient background, sized to the current state.
+func (m Model) WithBackground(bg Background) Model {
+	m.bg = newScene(bg, m.state.Width, m.state.Height)
 	return m
-}
-
-func newLife(w, h int) *life.Grid {
-	seed := uint64(time.Now().UnixNano())
-	g := life.New(w, h, rand.New(rand.NewPCG(seed, seed>>32)))
-	g.Seed()
-	return g
 }
 
 // tickMsg is sent every second to advance the clock.
@@ -45,19 +36,17 @@ func tick() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
-// lifeTickMsg advances the Game of Life background by one generation.
-type lifeTickMsg struct{}
+// bgTickMsg advances the ambient background by one step.
+type bgTickMsg struct{}
 
-const lifeInterval = 250 * time.Millisecond
-
-func lifeTick() tea.Cmd {
-	return tea.Tick(lifeInterval, func(time.Time) tea.Msg { return lifeTickMsg{} })
+func bgTick(d time.Duration) tea.Cmd {
+	return tea.Tick(d, func(time.Time) tea.Msg { return bgTickMsg{} })
 }
 
 // Init starts the periodic ticks.
 func (m Model) Init() tea.Cmd {
-	if m.life != nil {
-		return tea.Batch(tick(), lifeTick())
+	if m.bg != nil {
+		return tea.Batch(tick(), bgTick(m.bg.Interval()))
 	}
 	return tick()
 }
@@ -68,19 +57,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.state.Width = msg.Width
 		m.state.Height = msg.Height
-		if m.life != nil {
-			m.life = newLife(msg.Width, msg.Height)
+		if m.bg != nil {
+			m.bg.Resize(msg.Width, msg.Height)
 		}
 		return m, nil
 	case tickMsg:
 		m.state.Now = time.Time(msg)
 		return m, tick()
-	case lifeTickMsg:
-		if m.life == nil {
+	case bgTickMsg:
+		if m.bg == nil {
 			return m, nil
 		}
-		m.life.Tick()
-		return m, lifeTick()
+		m.bg.Tick()
+		return m, bgTick(m.bg.Interval())
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -113,8 +102,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // View renders the current frame.
 func (m Model) View() string {
 	out := render.Frame(m.state, m.opts)
-	if m.life != nil {
-		out = overlayLife(out, m.life, m.opts.Color)
+	if m.bg != nil {
+		out = overlay(out, m.bg, m.state.Width, m.state.Height, m.opts.Color)
 	}
 	return out
 }
