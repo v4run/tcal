@@ -19,15 +19,15 @@ const Height = shipH
 const MinWidth = 40
 
 const (
-	interval   = 150 * time.Millisecond
-	waterEvery = 5   // ticks per column of water drift
-	firstWait  = 15  // max ticks before the first ship sets sail
-	minWait    = 150 // minimum ticks of empty sea between ships
-	waitSpread = 450 // extra random ticks of empty sea
-	minPeriod  = 2   // fastest ship: ticks per column
-	periodSpan = 3   // ship periods are minPeriod..minPeriod+periodSpan-1
-	minGap     = 12  // minimum columns between a ship and its companion
-	gapSpread  = 30  // extra random columns between companions
+	interval   = 50 * time.Millisecond
+	waterEvery = 15   // ticks per column of water drift
+	firstWait  = 45   // max ticks before the first ship sets sail
+	minWait    = 450  // minimum ticks of empty sea between ships
+	waitSpread = 1350 // extra random ticks of empty sea
+	minPeriod  = 2    // fastest ship: ticks per column
+	periodSpan = 3    // ship periods are minPeriod..minPeriod+periodSpan-1
+	minGap     = 12   // minimum columns between a ship and its companion
+	gapSpread  = 30   // extra random columns between companions
 )
 
 const (
