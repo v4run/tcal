@@ -24,34 +24,55 @@ func on(m time.Month, d int) span { return span{day{m, d}, day{m, d}} }
 var moving = map[Kind]map[int]span{
 	// Makar Sankranti day, New Delhi.
 	//
+	// Rule: if the Sun enters sidereal Capricorn (the Sankranti moment) before
+	// local sunset at New Delhi (about 17:45 IST in mid-January), Sankranti is
+	// that day; if after sunset, it is the next day. A year whose moment falls
+	// within 15 minutes of sunset would be omitted; none does.
+	//
 	// Sources:
 	//   - AstroSage, https://panchang.astrosage.com/festival/makar-sankranti?date=YYYY
-	//     (New Delhi), all years 2026-2040.
+	//     (New Delhi), all years 2026-2040. Dates are derived from its
+	//     Sankranti moment / Punya Kaal times, not its header date, which
+	//     contradicts its own times in 2030, 2034 and 2038. Moments (IST):
+	//     Jan 14 afternoon or morning, before sunset -> Jan 14:
+	//       2026 14:49, 2029 09:17, 2030 15:27, 2033 09:55, 2034 16:04,
+	//       2037 10:32, 2038 16:41;
+	//     Jan 14 after sunset -> Jan 15: 2027 20:59, 2031 21:36, 2035 22:13,
+	//       2039 22:50;
+	//     early on Jan 15 (Punya Kaal starts at the 07:15 sunrise) -> Jan 15:
+	//       2028, 2032, 2036, 2040.
 	//   - drikpanchang, https://www.drikpanchang.com/sankranti/makar-sankranti-date-time.html
 	//     (New Delhi): 2027 Jan 15.
 	//   - drikpanchang Malayalam calendar (Cochin), "Makaram Sankramam",
 	//     https://www.drikpanchang.com/malayalam/calendar/malayalam-calendar.html?year=YYYY&geoname-id=1273874:
 	//     2027 Jan 15 (Thiruvananthapuram), 2028 Jan 15, 2029 Jan 14.
+	//   - dekhopanchang, https://dekhopanchang.com/en/festivals/makar-sankranti/2030:
+	//     2030 Jan 14; vedpanchang, https://vedpanchang.com/festivals/makar-sankranti-2034:
+	//     2034 Jan 14 (both cited in review).
+	//
+	// 2030-2040 rest on AstroSage's times (plus the two checks above).
 	//
 	// Disagreement: the DoPT 2027 restricted-holiday list (F. No. 12/2/2023-JCA,
 	// https://www.staffnews.in/2026/07/list-of-restricted-holidays-for-the-year-2027.html)
-	// puts Makar Sankranti on Jan 14, 2027. The Sankranti moment falls after
-	// sunset on Jan 14 (21:14 IST), so the panchangs observe it on Jan 15; we
-	// follow the panchangs. 2031-2040 rest on AstroSage alone.
+	// puts Makar Sankranti on Jan 14, 2027. We follow the panchangs (Jan 15,
+	// moment after sunset) here even though the gazetted list wins for Holi
+	// 2027: Sankranti appears only on the restricted (optional) list, not the
+	// closed one, and the same list puts Pongal, the Tamil Nadu observance of
+	// the same transit, on Jan 15.
 	Sankranti: {
 		2026: on(time.January, 14),
 		2027: on(time.January, 15),
 		2028: on(time.January, 15),
 		2029: on(time.January, 14),
-		2030: on(time.January, 15),
+		2030: on(time.January, 14),
 		2031: on(time.January, 15),
 		2032: on(time.January, 15),
 		2033: on(time.January, 14),
-		2034: on(time.January, 15),
+		2034: on(time.January, 14),
 		2035: on(time.January, 15),
 		2036: on(time.January, 15),
 		2037: on(time.January, 14),
-		2038: on(time.January, 15),
+		2038: on(time.January, 14),
 		2039: on(time.January, 15),
 		2040: on(time.January, 15),
 	},
@@ -92,7 +113,8 @@ var moving = map[Kind]map[int]span{
 	//
 	// Disagreement: for 2027 drikpanchang gives Mar 22 but AstroSage and the
 	// central-government gazetted list give Mar 23; we use Mar 23 as the date
-	// most widely observed in India. 2032-2040 rest on AstroSage alone.
+	// most widely observed in India. 2032-2040 rest on AstroSage, later
+	// confirmed in review against qppstudio and vedpanchang.
 	Holi: {
 		2026: on(time.March, 4),
 		2027: on(time.March, 23),
@@ -209,7 +231,12 @@ var moving = map[Kind]map[int]span{
 	//     (New Delhi), all years 2026-2040; agrees with drikpanchang 2026-2033.
 	//   - DoPT gazetted holidays: 2026 Nov 8, 2027 Oct 29 (agree).
 	//
-	// 2034-2040 rest on AstroSage alone.
+	// 2034-2040 rest on AstroSage, later confirmed in review against
+	// qppstudio, vedpanchang and AstroSage's Amavasya timings.
+	//
+	// 2037 is omitted: AstroSage gives Nov 7, but its Amavasya runs Nov 6 20:54
+	// to Nov 7 17:34, leaving almost no pradosh on either day, and vedpanchang
+	// and drikpanchang (Columbus) give Nov 6; no India source settles it.
 	Diwali: {
 		2026: on(time.November, 8),
 		2027: on(time.October, 29),
@@ -222,7 +249,6 @@ var moving = map[Kind]map[int]span{
 		2034: on(time.November, 10),
 		2035: on(time.October, 30),
 		2036: on(time.October, 18),
-		2037: on(time.November, 7),
 		2038: on(time.October, 27),
 		2039: on(time.November, 15),
 		2040: on(time.November, 4),

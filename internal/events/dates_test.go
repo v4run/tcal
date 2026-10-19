@@ -53,9 +53,18 @@ func TestTable_WellFormed(t *testing.T) {
 			case LunarNewYear:
 				ok = in(s.start, day{time.January, 20}, day{time.February, 21})
 			case Eid:
-				// The date must be a real day of the key's year (an Eid near
-				// a year boundary must not be filed under the wrong year).
-				ok = start.Year() == y && start.Month() == s.start.m && start.Day() == s.start.d
+				// Consecutive entries must be a whole number of lunar years
+				// (354-355 days) apart: one, or two when a year holds two
+				// Eids and the table keeps the later one (2033). A date filed
+				// under the wrong year, or one off by more than a day, shows
+				// up as a bad gap.
+				if prev, ok := years[y-1]; ok {
+					gap := int(start.Sub(date(y-1, prev.start)).Hours() / 24)
+					if (gap < 353 || gap > 356) && (gap < 707 || gap > 710) {
+						t.Errorf("Eid %d: %d days after %d's, want 353-356 or 707-710", y, gap, y-1)
+					}
+				}
+				ok = true
 			default:
 				t.Errorf("unexpected kind %v in moving table", k)
 				continue
@@ -80,6 +89,9 @@ func TestTable_SpotChecks(t *testing.T) {
 		one(Sankranti, 2026, time.January, 14),
 		one(Sankranti, 2027, time.January, 15),
 		one(Sankranti, 2035, time.January, 15),
+		// Afternoon moment (15:27 IST, before sunset) and after-sunset moment.
+		one(Sankranti, 2030, time.January, 14),
+		one(Sankranti, 2031, time.January, 15),
 		// Lunar New Year, Hong Kong Observatory conversion tables.
 		one(LunarNewYear, 2026, time.February, 17),
 		one(LunarNewYear, 2033, time.January, 31),
