@@ -124,3 +124,16 @@ func TestStarfield_Interface(t *testing.T) {
 	_ = s.RGB(0, 0, noBox)
 	_ = s.Glyph(0, 0, noBox)
 }
+
+// The first frame looks like steady state: stars are spread evenly between
+// the centre and the edge, not bunched near the centre.
+func TestStarfield_EvenStart(t *testing.T) {
+	s := New(300, 100, rand.New(rand.NewPCG(1, 2)))
+	sum := 0.0
+	for _, st := range s.stars {
+		sum += st.r / s.edge(st.angle)
+	}
+	if mean := sum / float64(len(s.stars)); mean < 0.45 || mean > 0.55 {
+		t.Fatalf("mean depth %.2f, want about 0.5", mean)
+	}
+}

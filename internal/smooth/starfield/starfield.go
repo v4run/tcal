@@ -128,7 +128,7 @@ func (s *Scene) spawn(scattered bool) star {
 		speed: minSpeed + s.rng.Float64()*speedSpread,
 	}
 	if scattered {
-		st.r = s.rng.Float64() * s.maxR()
+		st.r = s.rng.Float64() * s.edge(st.angle)
 	} else {
 		st.r = s.rng.Float64() * spawnR
 	}

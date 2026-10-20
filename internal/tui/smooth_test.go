@@ -15,7 +15,6 @@ import (
 	"github.com/v4run/tcal/internal/palette"
 	"github.com/v4run/tcal/internal/render"
 	"github.com/v4run/tcal/internal/scene"
-	"github.com/v4run/tcal/internal/scenes/aquarium"
 	"github.com/v4run/tcal/internal/scenes/rain"
 )
 
@@ -309,9 +308,16 @@ func TestStyles(t *testing.T) {
 
 // Names missing from the smooth registry fall back to their classic scene.
 func TestSmooth_FallsBackToClassic(t *testing.T) {
-	m := runnerModel(100, 40).WithBackground("aquarium", smoothOpts)
-	if _, ok := m.bg.(*aquarium.Scene); !ok {
-		t.Fatalf("got %T, want classic *aquarium.Scene", m.bg)
+	const name = "rain"
+	orig, ok := smoothBackgrounds[name]
+	if !ok {
+		t.Fatalf("%q is not a smooth background", name)
+	}
+	delete(smoothBackgrounds, name)
+	t.Cleanup(func() { smoothBackgrounds[name] = orig })
+	m := runnerModel(100, 40).WithBackground(name, smoothOpts)
+	if _, ok := m.bg.(*rain.Scene); !ok {
+		t.Fatalf("got %T, want classic *rain.Scene", m.bg)
 	}
 	for name := range smoothBackgrounds {
 		if _, ok := backgrounds[name]; !ok {

@@ -72,17 +72,28 @@ func TestFlow_Glides(t *testing.T) {
 func TestFlow_TrailFades(t *testing.T) {
 	s := New(200, 40, rand.New(rand.NewPCG(1, 2)))
 	s.straight()
-	s.gap = 300 * time.Millisecond
 	s.ps = []particle{{x: 5, y: 20, life: 1000}}
 	for range 60 { // let the history fill
 		s.Step(dt)
+	}
+	if s.gap != trailGap || float64(trailGap.Seconds())*speed < 1 {
+		t.Fatalf("gap %v puts trail points under one column apart", s.gap)
 	}
 	d := dotsOnRow(s, 80)
 	if len(d) != trailLen+1 {
 		t.Fatalf("%d dots, want head + %d trail: %v", len(d), trailLen, d)
 	}
+	// The newest trail point can sit within a column of the head and share
+	// its cell (the head wins the colour); trail points must never share
+	// one with each other, and the fade must show along the rest.
 	prev := math.Inf(1)
 	for i := len(d) - 1; i >= 0; i-- { // head first, then back along the trail
+		if i < len(d)-1 && d[i+1]/2 == d[i]/2 {
+			if i == len(d)-2 {
+				continue // newest trail point hidden under the head
+			}
+			t.Fatalf("trail dots %d and %d share a cell", i, i+1)
+		}
 		l := lum(s.canvas.RGB(d[i]/2, 20))
 		if l >= prev {
 			t.Fatalf("dot %d (col %d) luminance %v not below %v", i, d[i], l, prev)

@@ -35,9 +35,11 @@ const (
 	// Particle lifetimes in seconds (60-180 ticks of 80 ms).
 	minLife, maxLife = 60 * 0.08, 180 * 0.08
 	// trailLen is the number of fading trail dots behind a head, sampled
-	// every trailGap.
+	// every trailGap. At speed (7.5 columns/s) 160 ms puts consecutive
+	// points 1.2 columns apart, so each lands in its own cell and the fade
+	// shows instead of being overdrawn by the head.
 	trailLen = 3
-	trailGap = 90 * time.Millisecond
+	trailGap = 160 * time.Millisecond
 )
 
 var (
