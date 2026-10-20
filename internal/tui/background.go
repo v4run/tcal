@@ -13,6 +13,7 @@ import (
 
 	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/life"
+	"github.com/v4run/tcal/internal/palette"
 	"github.com/v4run/tcal/internal/runner"
 	"github.com/v4run/tcal/internal/scene"
 	"github.com/v4run/tcal/internal/scenes/ants"
@@ -42,8 +43,16 @@ type bgStyle int
 const (
 	stylePlain bgStyle = iota // no escapes at all (NO_COLOR, --no-color)
 	styleFaint                // dim, in the terminal's foreground color
-	styleColor                // dim, tinted by scenes that implement scene.Colored
+	styleColor                // dim, tinted by scenes that implement scene.Colored or scene.TrueColored
 )
+
+// bgPaint is how the overlay colours background glyphs: the style, plus the
+// colour mode and terminal background used for true-colour scenes.
+type bgPaint struct {
+	style bgStyle
+	mode  palette.Mode
+	bg    scene.RGB
+}
 
 // sgrColor returns the escape that selects c as the foreground color.
 func sgrColor(c scene.Color) string {
@@ -61,6 +70,8 @@ type BackgroundOptions struct {
 	Birthday *events.MonthDay
 	// RandomPool lists the backgrounds Random picks from; nil means all.
 	RandomPool []string
+	// Style is StyleClassic or StyleSmooth; empty means classic.
+	Style string
 }
 
 // backgrounds maps --bg names to scene constructors. Constructors receive
@@ -104,7 +115,8 @@ func Backgrounds() []string {
 	return slices.Sorted(maps.Keys(backgrounds))
 }
 
-// newScene builds the named background. For Random it draws uniformly from
+// newScene builds the named background in style o.Style; a name with no
+// smooth constructor uses its classic one. For Random it draws uniformly from
 // o.RandomPool (all backgrounds when nil), except that seasons is chosen
 // whenever events are on, seasons is in the pool and an event is active at
 // bgNow.
@@ -126,7 +138,10 @@ func newScene(name string, w, h int, o BackgroundOptions, bgNow time.Time) scene
 			}
 		}
 	}
-	ctor, ok := backgrounds[name]
+	ctor, ok := smoothBackgrounds[name]
+	if o.Style != StyleSmooth || !ok {
+		ctor, ok = backgrounds[name]
+	}
 	if !ok {
 		return nil
 	}
@@ -183,7 +198,7 @@ func (d *runnerScene) Color(x, y int, _ scene.Box) scene.Color { return d.s.Colo
 // overlay draws sc into the blank margins of frame, leaving the calendar's
 // bounding box (plus one cell of padding) untouched. frame must be exactly
 // w × h (as produced by render.Fit); otherwise it is returned unchanged.
-func overlay(frame string, sc scene.Scene, w, h int, style bgStyle) string {
+func overlay(frame string, sc scene.Scene, w, h int, p bgPaint) string {
 	lines := strings.Split(frame, "\n")
 	if len(lines) != h {
 		return frame
@@ -208,7 +223,7 @@ func overlay(frame string, sc scene.Scene, w, h int, style bgStyle) string {
 	if y0 < 0 {
 		empty := scene.Box{Y0: -1, Y1: -1}
 		for y := range lines {
-			lines[y] = cells(sc, y, 0, w, empty, style)
+			lines[y] = cells(sc, y, 0, w, empty, p)
 		}
 		return strings.Join(lines, "\n")
 	}
@@ -228,36 +243,56 @@ func overlay(frame string, sc scene.Scene, w, h int, style bgStyle) string {
 
 	for y, ln := range lines {
 		if y < b.Y0 || y > b.Y1 {
-			lines[y] = cells(sc, y, 0, w, b, style)
+			lines[y] = cells(sc, y, 0, w, b, p)
 			continue
 		}
-		lines[y] = cells(sc, y, 0, b.X0, b, style) + ln[b.X0:len(ln)-(w-b.X1)] + cells(sc, y, b.X1, w, b, style)
+		lines[y] = cells(sc, y, 0, b.X0, b, p) + ln[b.X0:len(ln)-(w-b.X1)] + cells(sc, y, b.X1, w, b, p)
 	}
 	return strings.Join(lines, "\n")
 }
 
 // cells renders row y of sc over columns [from, to) as glyphs and spaces.
 // Color escapes are emitted only when the color changes between glyphs.
-func cells(sc scene.Scene, y, from, to int, b scene.Box, style bgStyle) string {
+// True-colour scenes are blended toward p.bg by keepFactor, then emitted as
+// 24-bit escapes in TrueColor mode or as the nearest palette colour in ANSI
+// mode.
+func cells(sc scene.Scene, y, from, to int, b scene.Box, p bgPaint) string {
 	if from >= to {
 		return ""
 	}
 	colored, _ := sc.(scene.Colored)
-	if style != styleColor {
-		colored = nil
+	trueColored, _ := sc.(scene.TrueColored)
+	if p.style != styleColor {
+		colored, trueColored = nil, nil
 	}
 	var sb strings.Builder
-	if style != stylePlain {
+	if p.style != stylePlain {
 		sb.WriteString(faintOn)
 	}
 	cur := scene.Default
+	var curRGB scene.RGB
+	rgbSet := false
 	for x := from; x < to; x++ {
 		r := sc.Glyph(x, y, b)
 		if r == 0 {
 			sb.WriteByte(' ')
 			continue
 		}
-		if colored != nil {
+		switch {
+		case trueColored != nil:
+			rgb := palette.Blend(trueColored.RGB(x, y, b), p.bg, keepFactor)
+			if p.mode == palette.TrueColor {
+				if !rgbSet || rgb != curRGB {
+					fmt.Fprintf(&sb, "\x1b[38;2;%d;%d;%dm", rgb.R, rgb.G, rgb.B)
+					curRGB, rgbSet = rgb, true
+				}
+				break
+			}
+			if c := palette.Nearest(rgb); c != cur {
+				sb.WriteString(sgrColor(c))
+				cur = c
+			}
+		case colored != nil:
 			if c := colored.Color(x, y, b); c != cur {
 				sb.WriteString(sgrColor(c))
 				cur = c
@@ -265,10 +300,10 @@ func cells(sc scene.Scene, y, from, to int, b scene.Box, style bgStyle) string {
 		}
 		sb.WriteRune(r)
 	}
-	if cur != scene.Default {
+	if cur != scene.Default || rgbSet {
 		sb.WriteString(fgReset)
 	}
-	if style != stylePlain {
+	if p.style != stylePlain {
 		sb.WriteString(faintOff)
 	}
 	return sb.String()

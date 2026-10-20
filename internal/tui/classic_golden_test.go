@@ -13,8 +13,8 @@ import (
 
 var update = flag.Bool("update", false, "rewrite golden files")
 
-// goldenTick is the background tick message sent for step i of a golden run.
-func goldenTick(time.Time) tea.Msg { return bgTickMsg{} }
+// goldenTick is the background tick message sent at time at in a golden run.
+func goldenTick(at time.Time) tea.Msg { return bgTickMsg(at) }
 
 // TestClassicGolden pins the classic style's output: every background, built
 // with a fixed seed and a fixed local time, must render exactly as recorded.

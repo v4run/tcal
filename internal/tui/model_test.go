@@ -142,7 +142,7 @@ func TestWithLife_ResizeRebuildsGrid(t *testing.T) {
 func TestUpdate_BackgroundTickRearms(t *testing.T) {
 	for _, bg := range []string{"life", "container"} {
 		m := newTestModel(time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)).WithBackground(bg, BackgroundOptions{})
-		if _, cmd := m.Update(bgTickMsg{}); cmd == nil {
+		if _, cmd := m.Update(bgTickMsg(time.Time{})); cmd == nil {
 			t.Errorf("background %s: expected bgTickMsg to schedule the next tick", bg)
 		}
 	}

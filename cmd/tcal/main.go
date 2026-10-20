@@ -13,10 +13,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
 
 	"github.com/v4run/tcal/internal/config"
 	"github.com/v4run/tcal/internal/events"
+	"github.com/v4run/tcal/internal/palette"
 	"github.com/v4run/tcal/internal/printout"
 	"github.com/v4run/tcal/internal/render"
 	"github.com/v4run/tcal/internal/tui"
@@ -58,7 +60,14 @@ type runConfig struct {
 	bgOpts tui.BackgroundOptions
 	bgMono bool
 	bgTime *time.Time // nil when --bg-time is unset
+	// bgStyle is tui.StyleClassic or tui.StyleSmooth (also in bgOpts.Style).
+	bgStyle string
+	// bgPalette is the colour depth for true-colour backgrounds.
+	bgPalette palette.Mode
 }
+
+// getenv reads the environment; tests replace it.
+var getenv = os.Getenv
 
 // configForbidden lists flags the config file may never set.
 var configForbidden = []string{"date", "year", "print", "bg-time", "version", "config"}
@@ -90,6 +99,14 @@ func run(args []string, stdout, stderr *os.File) error {
 	if rc.bgMono {
 		model = model.WithBackgroundMono()
 	}
+	if rc.bg != "" {
+		// Ask the terminal for its background once, before Bubble Tea owns it.
+		termBg := palette.Light
+		if lipgloss.HasDarkBackground() {
+			termBg = palette.Dark
+		}
+		model = model.WithBackgroundPalette(rc.bgPalette, termBg)
+	}
 	prog := tea.NewProgram(model, tea.WithAltScreen())
 	_, err = prog.Run()
 	return err
@@ -113,6 +130,8 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	withClock := fs.Bool("with-clock", false, "include block clock in print mode")
 	clockStyle := fs.String("clock-style", "block", "block|inline|boxed")
 	bgS := fs.String("bg", "none", "ambient background in live mode: none|random|"+strings.Join(tui.Backgrounds(), "|"))
+	bgStyleS := fs.String("bg-style", tui.StyleClassic, "background style: "+strings.Join(tui.Styles(), "|"))
+	bgPaletteS := fs.String("bg-palette", "auto", "background colors: auto|truecolor|ansi")
 	bgColor := fs.Bool("bg-color", true, "tint the background; false draws it dim in the foreground color")
 	bgTimeS := fs.String("bg-time", "", "time seen by time-aware backgrounds: HH:MM, YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 	showEvents := fs.Bool("events", true, "show holiday scenes in the seasons background")
@@ -153,6 +172,8 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 		"highlight":   func(s string) error { _, err := parseHighlight(s); return err },
 		"clock-style": func(s string) error { _, err := parseClockStyle(s); return err },
 		"bg":          func(s string) error { _, err := parseBackground(s); return err },
+		"bg-style":    func(s string) error { _, err := parseBgStyle(s); return err },
+		"bg-palette":  func(s string) error { _, err := parseBgPalette(s); return err },
 		"no-color":    func(s string) error { _, err := strconv.ParseBool(s); return err },
 		"with-clock":  func(s string) error { _, err := strconv.ParseBool(s); return err },
 		"bg-color":    func(s string) error { _, err := strconv.ParseBool(s); return err },
@@ -180,7 +201,15 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 		}
 	}
 
-	bgOpts := tui.BackgroundOptions{Events: *showEvents}
+	bgStyle, err := parseBgStyle(*bgStyleS)
+	if err != nil {
+		return runConfig{}, err
+	}
+	bgPalette, err := parseBgPalette(*bgPaletteS)
+	if err != nil {
+		return runConfig{}, err
+	}
+	bgOpts := tui.BackgroundOptions{Events: *showEvents, Style: bgStyle}
 	if cfg.RandomPool != nil {
 		known := tui.Backgrounds()
 		pool := make([]string, len(cfg.RandomPool))
@@ -228,6 +257,9 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 		bgOpts: bgOpts,
 		bgMono: !*bgColor,
 		bgTime: bgTime,
+
+		bgStyle:   bgStyle,
+		bgPalette: bgPalette,
 	}, nil
 }
 
@@ -263,7 +295,7 @@ func buildState(layoutS, dateS string, year, months int, weekStartS, highlightS,
 		return render.State{}, render.Options{}, err
 	}
 
-	color := !noColor && os.Getenv("NO_COLOR") == ""
+	color := !noColor && getenv("NO_COLOR") == ""
 
 	return render.State{
 			Anchor: anchor,
@@ -348,6 +380,26 @@ func parseBackground(s string) (string, error) {
 		return s, nil
 	}
 	return "", fmt.Errorf("unknown --bg %q (expected none|random|%s)", s, strings.Join(tui.Backgrounds(), "|"))
+}
+
+func parseBgStyle(s string) (string, error) {
+	if l := strings.ToLower(s); slices.Contains(tui.Styles(), l) {
+		return l, nil
+	}
+	return "", fmt.Errorf("unknown --bg-style %q (expected %s)", s, strings.Join(tui.Styles(), "|"))
+}
+
+// parseBgPalette parses --bg-palette; auto detects true colour from
+// COLORTERM.
+func parseBgPalette(s string) (palette.Mode, error) {
+	mode, auto, err := palette.Parse(s)
+	if err != nil {
+		return 0, fmt.Errorf("unknown --bg-palette %q (expected auto|truecolor|ansi)", s)
+	}
+	if auto {
+		mode = palette.Detect(getenv)
+	}
+	return mode, nil
 }
 
 // parseBgTime parses --bg-time. A bare time keeps today's date; a bare date

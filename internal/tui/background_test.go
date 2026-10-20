@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"math/rand/v2"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -50,7 +49,7 @@ func runeGrid(s string) [][]rune {
 func TestOverlay_NeverTouchesCalendarRegion(t *testing.T) {
 	const w, h = 100, 30
 	frame := testFrame(w, h)
-	got := overlay(frame, fullLife(w, h), w, h, styleColor)
+	got := overlay(frame, fullLife(w, h), w, h, bgPaint{style: styleColor})
 
 	before, after := runeGrid(frame), runeGrid(got)
 	if len(after) != h {
@@ -90,7 +89,7 @@ func TestOverlay_NeverTouchesCalendarRegion(t *testing.T) {
 
 func TestOverlay_NoColorEmitsNoEscapes(t *testing.T) {
 	const w, h = 100, 30
-	got := overlay(testFrame(w, h), fullLife(w, h), w, h, stylePlain)
+	got := overlay(testFrame(w, h), fullLife(w, h), w, h, bgPaint{style: stylePlain})
 	if strings.Contains(got, "\x1b[2m") {
 		t.Error("faint escape emitted with color disabled")
 	}
@@ -101,7 +100,7 @@ func TestOverlay_NoColorEmitsNoEscapes(t *testing.T) {
 
 func TestOverlay_LeavesMismatchedFrameAlone(t *testing.T) {
 	frame := testFrame(30, 30) // too narrow: hint line, no centering
-	if got := overlay(frame, fullLife(30, 30), 30, 30, styleColor); got != frame {
+	if got := overlay(frame, fullLife(30, 30), 30, 30, bgPaint{style: styleColor}); got != frame {
 		t.Error("expected unpadded frame to be returned unchanged")
 	}
 }
@@ -193,7 +192,7 @@ func TestAllBackgrounds_NeverTouchCalendar(t *testing.T) {
 			}
 			m = m.WithBackground(name, BackgroundOptions{})
 			for i := 0; i < 120; i++ {
-				next, _ := m.Update(bgTickMsg{})
+				next, _ := m.Update(bgTickMsg(time.Time{}))
 				m = next.(Model)
 				if i%20 != 0 {
 					continue
@@ -230,7 +229,7 @@ func TestAllEvents_NeverTouchCalendar(t *testing.T) {
 			t.Fatalf("%v: active event %v, %v", occ.Kind, k, ok)
 		}
 		for i := 0; i < 100; i++ {
-			next, _ := m.Update(bgTickMsg{})
+			next, _ := m.Update(bgTickMsg(time.Time{}))
 			m = next.(Model)
 		}
 		assertCalendarIntact(t, occ.Kind.String(), plain, runeGrid(m.View()))
@@ -289,7 +288,7 @@ func TestRandom_EventDayWithoutSeasonsInPool(t *testing.T) {
 
 func TestOverlay_ColorStyleTintsGlyphs(t *testing.T) {
 	const w, h = 100, 30
-	got := overlay(testFrame(w, h), fullLife(w, h), w, h, styleColor)
+	got := overlay(testFrame(w, h), fullLife(w, h), w, h, bgPaint{style: styleColor})
 	if !strings.Contains(got, faintOn+sgrColor(scene.Green)+"·") {
 		t.Error("expected dim green life cells")
 	}
@@ -297,7 +296,7 @@ func TestOverlay_ColorStyleTintsGlyphs(t *testing.T) {
 
 func TestOverlay_FaintStyleIgnoresSceneColors(t *testing.T) {
 	const w, h = 100, 30
-	got := overlay(testFrame(w, h), fullLife(w, h), w, h, styleFaint)
+	got := overlay(testFrame(w, h), fullLife(w, h), w, h, bgPaint{style: styleFaint})
 	if strings.Contains(got, sgrColor(scene.Green)) {
 		t.Error("mono background emitted a scene color")
 	}
@@ -308,7 +307,7 @@ func TestOverlay_FaintStyleIgnoresSceneColors(t *testing.T) {
 
 func TestOverlay_ColorResetsAtSegmentEnd(t *testing.T) {
 	const w, h = 100, 30
-	got := overlay(testFrame(w, h), fullLife(w, h), w, h, styleColor)
+	got := overlay(testFrame(w, h), fullLife(w, h), w, h, bgPaint{style: styleColor})
 	for i, ln := range strings.Split(got, "\n") {
 		if strings.Contains(ln, sgrColor(scene.Green)) && !strings.Contains(ln, fgReset+faintOff) {
 			t.Fatalf("line %d leaves the color set", i)
@@ -319,7 +318,6 @@ func TestOverlay_ColorResetsAtSegmentEnd(t *testing.T) {
 // Every registered background is tinted, and colored rows never leak a
 // color past the end of a background segment into the calendar.
 func TestAllBackgrounds_ColorWellFormed(t *testing.T) {
-	sgr := regexp.MustCompile(`\x1b\[(3[1-7]|39)m`)
 	for _, name := range Backgrounds() {
 		m := runnerModel(100, 40)
 		m = m.WithBackground(name, BackgroundOptions{})
@@ -329,21 +327,12 @@ func TestAllBackgrounds_ColorWellFormed(t *testing.T) {
 		}
 		tinted := false
 		for i := 0; i < 200; i++ {
-			next, _ := m.Update(bgTickMsg{})
+			next, _ := m.Update(bgTickMsg(time.Time{}))
 			m = next.(Model)
 			if i%25 != 0 {
 				continue
 			}
-			for y, ln := range strings.Split(m.View(), "\n") {
-				// Track the color across the line: each faint segment must
-				// end back on the default foreground.
-				for _, seg := range strings.Split(ln, faintOff) {
-					ss := sgr.FindAllStringSubmatch(seg, -1)
-					if len(ss) > 0 && ss[len(ss)-1][1] != "39" && strings.Contains(seg, faintOn) {
-						t.Fatalf("%s tick %d row %d: segment ends with color %s set", name, i, y, ss[len(ss)-1][1])
-					}
-				}
-			}
+			assertColorWellFormed(t, fmt.Sprintf("%s tick %d", name, i), m.View())
 			// Check tinting on the scene itself: what is visible depends on
 			// where things happen to be relative to the calendar.
 			colored := m.bg.(scene.Colored)

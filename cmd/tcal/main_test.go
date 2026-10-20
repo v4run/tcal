@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/v4run/tcal/internal/events"
+	"github.com/v4run/tcal/internal/palette"
 	"github.com/v4run/tcal/internal/render"
+	"github.com/v4run/tcal/internal/tui"
 )
 
 func TestParseBgTime(t *testing.T) {
@@ -229,5 +231,92 @@ func TestConfigure_RandomPoolCaseInsensitive(t *testing.T) {
 	}
 	if !slices.Equal(rc.bgOpts.RandomPool, []string{"sky"}) {
 		t.Errorf("pool = %v", rc.bgOpts.RandomPool)
+	}
+}
+
+// fakeEnv replaces getenv for one test.
+func fakeEnv(t *testing.T, env map[string]string) {
+	t.Helper()
+	orig := getenv
+	getenv = func(k string) string { return env[k] }
+	t.Cleanup(func() { getenv = orig })
+}
+
+func TestConfigure_BgStyleDefault(t *testing.T) {
+	emptyXDG(t)
+	rc, err := configure(nil, io.Discard, cfgNow)
+	if err != nil || rc.bgStyle != tui.StyleClassic || rc.bgOpts.Style != tui.StyleClassic {
+		t.Errorf("got %q / %q, %v; want classic", rc.bgStyle, rc.bgOpts.Style, err)
+	}
+}
+
+func TestConfigure_BgStyleFlagAndConfig(t *testing.T) {
+	p := writeCfg(t, "bg-style = \"smooth\"\n")
+	rc, err := configure([]string{"--config", p}, io.Discard, cfgNow)
+	if err != nil || rc.bgStyle != tui.StyleSmooth || rc.bgOpts.Style != tui.StyleSmooth {
+		t.Errorf("config: got %q / %q, %v", rc.bgStyle, rc.bgOpts.Style, err)
+	}
+	rc, err = configure([]string{"--config", p, "--bg-style", "classic"}, io.Discard, cfgNow)
+	if err != nil || rc.bgStyle != tui.StyleClassic || rc.bgOpts.Style != tui.StyleClassic {
+		t.Errorf("flag: got %q / %q, %v", rc.bgStyle, rc.bgOpts.Style, err)
+	}
+}
+
+func TestConfigure_BgStyleInvalid(t *testing.T) {
+	emptyXDG(t)
+	_, err := configure([]string{"--bg-style", "fancy"}, io.Discard, cfgNow)
+	if err == nil || !strings.Contains(err.Error(), "fancy") {
+		t.Errorf("flag: got %v, want error naming the value", err)
+	}
+	p := writeCfg(t, "bg-style = \"fancy\"\n")
+	_, err = configure([]string{"--config", p}, io.Discard, cfgNow)
+	if err == nil || !strings.Contains(err.Error(), "fancy") || !strings.Contains(err.Error(), p) {
+		t.Errorf("config: got %v, want error naming the value and file", err)
+	}
+}
+
+func TestConfigure_BgPalette(t *testing.T) {
+	emptyXDG(t)
+	fakeEnv(t, map[string]string{})
+	rc, err := configure(nil, io.Discard, cfgNow)
+	if err != nil || rc.bgPalette != palette.ANSI {
+		t.Errorf("auto, no COLORTERM: got %v, %v; want ANSI", rc.bgPalette, err)
+	}
+	fakeEnv(t, map[string]string{"COLORTERM": "truecolor"})
+	rc, err = configure([]string{"--bg-palette", "auto"}, io.Discard, cfgNow)
+	if err != nil || rc.bgPalette != palette.TrueColor {
+		t.Errorf("auto, COLORTERM=truecolor: got %v, %v; want TrueColor", rc.bgPalette, err)
+	}
+	fakeEnv(t, map[string]string{})
+	rc, err = configure([]string{"--bg-palette", "truecolor"}, io.Discard, cfgNow)
+	if err != nil || rc.bgPalette != palette.TrueColor {
+		t.Errorf("truecolor: got %v, %v", rc.bgPalette, err)
+	}
+	fakeEnv(t, map[string]string{"COLORTERM": "truecolor"})
+	p := writeCfg(t, "bg-palette = \"ansi\"\n")
+	rc, err = configure([]string{"--config", p}, io.Discard, cfgNow)
+	if err != nil || rc.bgPalette != palette.ANSI {
+		t.Errorf("config ansi: got %v, %v", rc.bgPalette, err)
+	}
+	if _, err := configure([]string{"--bg-palette", "sepia"}, io.Discard, cfgNow); err == nil || !strings.Contains(err.Error(), "sepia") {
+		t.Errorf("invalid flag: got %v", err)
+	}
+	p = writeCfg(t, "bg-palette = \"sepia\"\n")
+	if _, err := configure([]string{"--config", p}, io.Discard, cfgNow); err == nil || !strings.Contains(err.Error(), "sepia") {
+		t.Errorf("invalid config: got %v", err)
+	}
+}
+
+func TestConfigure_NoColorBeatsPalette(t *testing.T) {
+	emptyXDG(t)
+	fakeEnv(t, map[string]string{})
+	rc, err := configure([]string{"--bg-palette", "truecolor", "--no-color"}, io.Discard, cfgNow)
+	if err != nil || rc.opts.Color {
+		t.Errorf("--no-color: color = %v, %v", rc.opts.Color, err)
+	}
+	fakeEnv(t, map[string]string{"NO_COLOR": "1", "COLORTERM": "truecolor"})
+	rc, err = configure([]string{"--bg-palette", "truecolor"}, io.Discard, cfgNow)
+	if err != nil || rc.opts.Color {
+		t.Errorf("NO_COLOR: color = %v, %v", rc.opts.Color, err)
 	}
 }
