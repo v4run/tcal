@@ -70,13 +70,17 @@ type runConfig struct {
 var getenv = os.Getenv
 
 // configForbidden lists flags the config file may never set.
-var configForbidden = []string{"date", "year", "print", "bg-time", "version", "config"}
+var configForbidden = []string{"date", "year", "print", "bg-time", "version", "config", "init-config"}
 
 func run(args []string, stdout, stderr *os.File) error {
 	rc, err := configure(args, stderr, time.Now())
 	if err != nil {
 		if errors.Is(err, errVersion) {
 			fmt.Fprintln(stdout, "tcal", versionString())
+		}
+		if w, ok := errors.AsType[configWritten](err); ok {
+			fmt.Fprintln(stdout, "tcal: wrote", w.path)
+			return nil
 		}
 		return err
 	}
@@ -143,6 +147,7 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	bgTimeS := fs.String("bg-time", "", "time seen by time-aware backgrounds: HH:MM, YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 	showEvents := fs.Bool("events", true, "show holiday scenes in the seasons background")
 	configPath := fs.String("config", "", "config file (default ~/.config/tcal/config.toml)")
+	initConfig := fs.Bool("init-config", false, "write a config file with every default (to --config or the default location), then exit")
 	showVersion := fs.Bool("version", false, "print version and exit")
 
 	if err := fs.Parse(args); err != nil {
@@ -150,6 +155,13 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	}
 	if *showVersion {
 		return runConfig{}, errVersion
+	}
+	if *initConfig {
+		path := *configPath
+		if path == "" {
+			path = config.DefaultPath()
+		}
+		return runConfig{}, writeConfig(path, fs)
 	}
 
 	setOnCLI := map[string]bool{}

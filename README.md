@@ -59,6 +59,7 @@ tcal --print | lpr
 | `--bg-palette`   | `auto`         | `auto \| truecolor \| ansi`; colors used by the smooth style |
 | `--events`       | `true`         | show holiday scenes in the `seasons` background; `--events=false` turns them off |
 | `--config`       | see [Config file](#config-file) | read this config file instead of the default; an error if it is missing |
+| `--init-config`  | `false`        | write a config file with every default to `--config` or the default location, then exit; never overwrites |
 
 ## Backgrounds
 
@@ -150,6 +151,13 @@ Fixed-date events are computed. Moving dates (Sankranti, Lunar New Year, Holi, V
 
 An optional TOML file sets defaults for the flags, your birthday and the pool `--bg random` picks from. It lives at `$XDG_CONFIG_HOME/tcal/config.toml`, falling back to `~/.config/tcal/config.toml` on every platform (macOS included). `--config <path>` reads a different file. With no file, tcal behaves exactly as it does without this feature.
 
+To start one, let tcal write it: every key set to its built-in default with a comment listing the choices, and the birthday and random pool commented out. It refuses to replace an existing file.
+
+```
+tcal --init-config                      # writes ~/.config/tcal/config.toml
+tcal --init-config --config ./tcal.toml # or anywhere else
+```
+
 ```toml
 # ~/.config/tcal/config.toml — every key is optional
 
@@ -183,7 +191,7 @@ $ tcal --config bad.toml          # layout = "diagonal"
 tcal: config bad.toml: layout = diagonal: unknown --layout "diagonal" (expected horizontal|grid)
 ```
 
-These flags cannot be set in the config: `--date`, `--year`, `--print`, `--bg-time`, `--version` and `--config`. A missing file at the default location is not an error.
+These flags cannot be set in the config: `--date`, `--year`, `--print`, `--bg-time`, `--version`, `--config` and `--init-config`. A missing file at the default location is not an error.
 
 ## Manual smoke checklist
 
