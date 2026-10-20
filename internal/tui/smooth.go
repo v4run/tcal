@@ -5,12 +5,14 @@ import (
 
 	"github.com/v4run/tcal/internal/scene"
 	"github.com/v4run/tcal/internal/smooth/flow"
+	"github.com/v4run/tcal/internal/smooth/harbor"
 	"github.com/v4run/tcal/internal/smooth/hourglass"
 	"github.com/v4run/tcal/internal/smooth/lava"
 	"github.com/v4run/tcal/internal/smooth/rain"
 	"github.com/v4run/tcal/internal/smooth/seasons"
 	"github.com/v4run/tcal/internal/smooth/sky"
 	"github.com/v4run/tcal/internal/smooth/starfield"
+	"github.com/v4run/tcal/internal/smooth/train"
 )
 
 // Background styles. Classic draws one glyph per cell in the 16-colour
@@ -62,5 +64,11 @@ var smoothBackgrounds = map[string]func(w, h int, rng *rand.Rand, o BackgroundOp
 			s.EnableEvents(o.Birthday)
 		}
 		return s
+	},
+	"harbor": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
+		return harbor.New(w, h, rng)
+	},
+	"train": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
+		return train.New(w, h, rng)
 	},
 }
