@@ -16,6 +16,7 @@ import (
 	"github.com/v4run/tcal/internal/render"
 	"github.com/v4run/tcal/internal/scene"
 	"github.com/v4run/tcal/internal/scenes/rain"
+	"github.com/v4run/tcal/internal/scenes/starfield"
 )
 
 var smoothOpts = BackgroundOptions{Style: StyleSmooth}
@@ -172,6 +173,9 @@ func TestSmooth_DimOnLightAndDark(t *testing.T) {
 			}
 		}
 	}
+	if trueColored == 0 {
+		t.Fatal("no true-colour scenes were checked")
+	}
 	t.Logf("checked %d true-colour scene runs (classic fallbacks are skipped)", trueColored)
 }
 
@@ -305,9 +309,9 @@ func TestStyles(t *testing.T) {
 
 // Names missing from the smooth registry fall back to their classic scene.
 func TestSmooth_FallsBackToClassic(t *testing.T) {
-	m := runnerModel(100, 40).WithBackground("rain", smoothOpts)
-	if _, ok := m.bg.(*rain.Scene); !ok {
-		t.Fatalf("got %T, want classic *rain.Scene", m.bg)
+	m := runnerModel(100, 40).WithBackground("starfield", smoothOpts)
+	if _, ok := m.bg.(*starfield.Scene); !ok {
+		t.Fatalf("got %T, want classic *starfield.Scene", m.bg)
 	}
 	for name := range smoothBackgrounds {
 		if _, ok := backgrounds[name]; !ok {
