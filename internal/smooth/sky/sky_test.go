@@ -362,3 +362,25 @@ func TestSky_SingleWidthAndTinySizes(t *testing.T) {
 		t.Errorf("interval %v", iv)
 	}
 }
+
+// On a short screen the sunrise disc must not be clipped by the upper-third
+// limit near the horizon.
+func TestSky_DiscVisibleAtSunriseOnShortScreen(t *testing.T) {
+	s := newTest(60, 12)
+	s.clouds = nil
+	s.SetTime(at(6, 30), at(6, 30))
+	cx, cy := s.sunCentre()
+	n := 0
+	for _, d := range sunFrames[0] {
+		if math.Hypot(float64(d[0])+0.5, float64(d[1])+0.5) > sunRadius {
+			continue
+		}
+		n++
+		if !lit(s, cx+d[0], cy+d[1]) {
+			t.Fatalf("disc dot (%d, %d) not lit", cx+d[0], cy+d[1])
+		}
+	}
+	if n == 0 {
+		t.Fatal("no disc dots checked")
+	}
+}

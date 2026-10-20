@@ -128,6 +128,12 @@ var cloudSprites = []sprite{
 	),
 }
 
+// rayReach is how far, in dots, the sun's rays extend below its centre.
+const rayReach = 8
+
+// cloudMaxH is the height in dots of the tallest cloud sprite.
+const cloudMaxH = 7
+
 // sprite is dot art as offsets from its top left, with its width in dots.
 type sprite struct {
 	w    int
@@ -261,13 +267,14 @@ func (s *Scene) arcPos(f float64) (x, y float64) {
 // sunCentre is the dot corner at the middle of the sun's disc.
 func (s *Scene) sunCentre() (dx, dy int) {
 	x, y := s.arcPos(arcFraction(s.now))
-	return int(math.Round(x * 2)), int(math.Round(y*4)) + sunDrop
+	// Keep the disc and rays whole above the limit on short screens.
+	return int(math.Round(x * 2)), min(int(math.Round(y*4))+sunDrop, s.limit()-rayReach-1)
 }
 
 // moonOrigin is the dot at the top left of the moon's bounding square.
 func (s *Scene) moonOrigin() (dx, dy int) {
 	x, y := s.arcPos(arcFraction(s.now))
-	return int(math.Round(x*2)) - moonDots/2, int(math.Round(y*4)) - moonDots/2
+	return int(math.Round(x*2)) - moonDots/2, min(int(math.Round(y*4))-moonDots/2, s.limit()-moonDots)
 }
 
 // cloudDot is cloud i's left edge in dot columns, as plotted.
@@ -310,7 +317,9 @@ func moonLit(p, u, v float64) bool {
 }
 
 func (s *Scene) cloudRow() int {
-	return arcTop*4 + s.rng.IntN(max((s.arcBottom()-arcTop)*4, 1))
+	row := arcTop*4 + s.rng.IntN(max((s.arcBottom()-arcTop)*4, 1))
+	// Cap the row so even the tallest cloud fits above the limit.
+	return max(min(row, s.limit()-cloudMaxH), 0)
 }
 
 func (s *Scene) scatter() {
