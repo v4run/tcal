@@ -1,9 +1,10 @@
 // Package starfield is the smooth starfield scene: stars in three depth
 // layers glide sideways with parallax at sub-cell resolution, and a shooting
-// star streaks across the sky now and then.
+// slow comet with a spreading tail crosses the sky now and then.
 package starfield
 
 import (
+	"math"
 	"math/rand/v2"
 	"time"
 
@@ -21,17 +22,18 @@ const (
 	step         = 33 * time.Millisecond
 	cellsPerStar = 70
 
-	minWait  = 10 * time.Second
-	waitVar  = 20 * time.Second
-	lifeSpan = 1400 * time.Millisecond // flight time before burning out
-	burnTime = 400 * time.Millisecond  // fade-out after lifeSpan
-	// Shooting-star motion in columns and rows per second (classic: 2 cols
-	// and 1 row per 100 ms).
-	meteorVX = 20.0
-	meteorVY = 10.0
-	// The trail samples the path every trailGap seconds behind the head.
-	trailDots = 7
-	trailGap  = 0.05
+	firstMin  = 30 * time.Second
+	firstVar  = 20 * time.Second
+	repeatMin = 30 * time.Second
+	repeatVar = 20 * time.Second
+	// A comet takes crossMin..crossMin+crossVar seconds to cross the width.
+	crossMin = 6.0
+	crossVar = 4.0
+	// cometSlope is the rows fallen per column travelled.
+	cometSlope = 0.12
+	// tailCols is the tail length in columns; the tail is sampled every
+	// half column (one dot).
+	tailCols = 20.0
 )
 
 type layer struct {
@@ -52,17 +54,23 @@ var layerCol = []scene.RGB{
 	{R: 200, G: 200, B: 230},
 }
 
-var headCol = scene.RGB{R: 235, G: 235, B: 245}
+var (
+	coreCol     = scene.RGB{R: 235, G: 240, B: 250}
+	ringCol     = scene.RGB{R: 205, G: 218, B: 242}
+	tailNearCol = scene.RGB{R: 200, G: 215, B: 240}
+)
 
 type star struct {
 	x, y  float64
 	layer int
 }
 
-type meteor struct {
-	x, y float64 // head position
-	dir  int     // +1 travels right, -1 left; always moves down
-	age  time.Duration
+// comet is a glowing head dragging a tail behind it.
+type comet struct {
+	x, y   float64 // head position
+	vx, vy float64 // columns and rows per second; vy > 0 is down
+	seed   uint64  // fixes which tail dots are drawn
+	age    time.Duration
 }
 
 // Scene is the starfield.
@@ -70,15 +78,16 @@ type Scene struct {
 	rng    *rand.Rand
 	w, h   int
 	stars  []star
-	meteor *meteor       // nil when none is in flight
-	wait   time.Duration // until the next shooting star
+	crng   *rand.Rand    // comet randomness, kept apart from the stars'
+	comet  *comet        // nil when none is in flight
+	wait   time.Duration // until the next comet
 	canvas dots.Canvas
 }
 
 // New returns a w×h scene that draws randomness from rng.
 func New(w, h int, rng *rand.Rand) *Scene {
-	s := &Scene{rng: rng}
-	s.wait = s.nextWait()
+	s := &Scene{rng: rng, crng: rand.New(rand.NewPCG(rng.Uint64(), rng.Uint64()))}
+	s.wait = firstMin + time.Duration(s.crng.Float64()*float64(firstVar))
 	s.Resize(w, h)
 	return s
 }
@@ -107,7 +116,7 @@ func (s *Scene) Resize(w, h int) {
 	for len(s.stars) < want {
 		s.stars = append(s.stars, s.spawn())
 	}
-	s.meteor = nil
+	s.comet = nil
 	s.canvas.Reset(s.w, s.h)
 	s.render()
 }
@@ -126,21 +135,31 @@ func (s *Scene) Step(dt time.Duration) {
 			}
 		}
 	}
-	if m := s.meteor; m != nil {
-		m.age += dt
-		m.x += float64(m.dir) * meteorVX * sec
-		m.y += meteorVY * sec
-		if m.age >= lifeSpan+burnTime {
-			s.meteor = nil
-			s.wait = s.nextWait()
+	if c := s.comet; c != nil {
+		c.age += dt
+		c.x += c.vx * sec
+		c.y += c.vy * sec
+		// Done once the tail has left the far side too.
+		var past float64 // columns beyond the finishing line
+		if c.vx > 0 {
+			past = c.x - (float64(s.w) + tailCols + 2)
+		} else {
+			past = -tailCols - 2 - c.x
+		}
+		if past > 0 {
+			s.comet = nil
+			// Time already elapsed since the finish counts toward the wait.
+			s.wait = repeatMin + time.Duration(s.crng.Float64()*float64(repeatVar)) -
+				time.Duration(past/math.Abs(c.vx)*float64(time.Second))
 		}
 	} else if s.wait -= dt; s.wait <= 0 {
 		if s.launch() {
-			s.meteor.age = -s.wait // carry over the overshoot
-			s.meteor.x += float64(s.meteor.dir) * meteorVX * -s.wait.Seconds()
-			s.meteor.y += meteorVY * -s.wait.Seconds()
+			over := -s.wait.Seconds()
+			s.comet.age = -s.wait // carry over the overshoot
+			s.comet.x += s.comet.vx * over
+			s.comet.y += s.comet.vy * over
 		} else {
-			s.wait = s.nextWait()
+			s.wait = repeatMin
 		}
 	}
 	s.render()
@@ -151,10 +170,6 @@ func (s *Scene) Glyph(x, y int, _ scene.Box) rune { return s.canvas.Glyph(x, y) 
 
 // RGB returns the colour of the glyph at (x, y).
 func (s *Scene) RGB(x, y int, _ scene.Box) scene.RGB { return s.canvas.RGB(x, y) }
-
-func (s *Scene) nextWait() time.Duration {
-	return minWait + time.Duration(s.rng.Float64()*float64(waitVar))
-}
 
 // spawn returns a star anywhere on the screen.
 func (s *Scene) spawn() star {
@@ -170,22 +185,36 @@ func (s *Scene) spawn() star {
 	}
 }
 
-// launch starts a shooting star in the upper part of the sky, heading down
-// and away from the side it starts on. It reports whether one was started.
+// launch sends a comet in from just off one side, in the upper half of the
+// sky, on a gentle downward slant. It reports whether one was started.
 func (s *Scene) launch() bool {
-	if s.w < 8 || s.h < 4 {
+	if s.w < 20 || s.h < 6 {
 		return false
 	}
-	m := &meteor{
-		x:   s.rng.Float64() * float64(s.w),
-		y:   s.rng.Float64() * float64(max(1, s.h/3)),
-		dir: 1,
+	speed := float64(s.w) / (crossMin + s.crng.Float64()*crossVar)
+	c := &comet{
+		y:    s.crng.Float64() * float64(s.h) / 2,
+		vx:   speed,
+		vy:   speed * cometSlope,
+		seed: s.crng.Uint64(),
 	}
-	if m.x >= float64(s.w)/2 {
-		m.dir = -1
+	if s.crng.IntN(2) == 0 {
+		c.vx = -speed
+		c.x = float64(s.w) + 1
+	} else {
+		c.x = -1
 	}
-	s.meteor = m
+	s.comet = c
 	return true
+}
+
+// hash maps (seed, i, j) to a stable value in [0, 1).
+func hash(seed uint64, i, j int) float64 {
+	z := seed + uint64(i)*0x9e3779b97f4a7c15 + uint64(j+16)*0xbf58476d1ce4e5b9
+	z = (z ^ z>>30) * 0xbf58476d1ce4e5b9
+	z = (z ^ z>>27) * 0x94d049bb133111eb
+	z ^= z >> 31
+	return float64(z>>11) / (1 << 53)
 }
 
 func scale(c scene.RGB, k float64) scene.RGB {
@@ -206,19 +235,36 @@ func (s *Scene) render() {
 	for _, st := range s.stars {
 		s.canvas.Dot(st.x, st.y, layerCol[st.layer])
 	}
-	m := s.meteor
-	if m == nil {
+	c := s.comet
+	if c == nil {
 		return
 	}
-	k := 1.0
-	if m.age > lifeSpan {
-		k = max(0, 1-float64(m.age-lifeSpan)/float64(burnTime))
+	dir := 1.0
+	if c.vx < 0 {
+		dir = -1
 	}
-	// Trail first so the head wins shared cells.
-	for i := trailDots; i >= 1; i-- {
-		back := float64(i) * trailGap
-		c := mix(headCol, layerCol[0], float64(i)/float64(trailDots))
-		s.canvas.Dot(m.x-float64(m.dir)*meteorVX*back, m.y-meteorVY*back, scale(c, k))
+	slope := c.vy / max(dir*c.vx, 1e-9)
+	flick := float64(c.age) / float64(time.Second)
+	// Tail first, head last. Dots are sampled one dot (half a column) apart
+	// along the path; the tail widens and thins with distance.
+	n := int(tailCols * 2)
+	for i := n; i >= 1; i-- {
+		u := float64(i) / float64(n)
+		k := int(1 + 4*u + 0.5)
+		dens := 1 - 0.7*u + 0.06*math.Sin(flick*4+float64(i)*0.7)
+		col := scale(mix(tailNearCol, layerCol[0], min(1, u*1.5)), 1-0.35*u)
+		bx := c.x - dir*float64(i)*0.5
+		by := c.y - slope*float64(i)*0.5
+		for jj := range k {
+			if hash(c.seed, i, jj) >= dens {
+				continue
+			}
+			j := float64(jj) - float64(k-1)/2
+			s.canvas.Dot(bx, by+j*0.25, col)
+		}
 	}
-	s.canvas.Dot(m.x, m.y, scale(headCol, k))
+	for _, d := range [4][2]float64{{-0.5, 0}, {0.5, 0}, {0, -0.25}, {0, 0.25}} {
+		s.canvas.Dot(c.x+d[0], c.y+d[1], ringCol)
+	}
+	s.canvas.Dot(c.x, c.y, coreCol)
 }
