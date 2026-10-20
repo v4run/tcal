@@ -81,16 +81,20 @@ func (f *fireworks) step(dt time.Duration, p float64) {
 	f.launch()
 }
 
-// launch adds a burst wherever it fits whole, or nothing on a tiny area.
+// launch adds a burst wherever it fits whole, droop and all, or nothing on
+// a tiny area.
 func (f *fireworks) launch() bool {
-	r := min(f.maxR, float64(f.h)/2, float64(f.w)/4)
+	// The sparks fall this far by the end of the fade; a hair less keeps the
+	// lowest one off the area's bottom edge.
+	drop := f.droop(f.grow+f.fade) + 1e-6
+	r := min(f.maxR, (float64(f.h)-drop)/2, float64(f.w)/4)
 	if r < 0.5 {
 		return false
 	}
 	r *= 0.6 + 0.4*f.rng.Float64()
 	f.bursts = append(f.bursts, burst{
 		x:    2*r + f.rng.Float64()*(float64(f.w)-4*r),
-		y:    r + f.rng.Float64()*(float64(f.h)-2*r),
+		y:    r + f.rng.Float64()*(float64(f.h)-2*r-drop),
 		r:    r,
 		col:  f.cols[f.rng.IntN(len(f.cols))],
 		spin: f.rng.Float64() * 2 * math.Pi,

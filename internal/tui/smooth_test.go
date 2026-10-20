@@ -10,12 +10,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/v4run/tcal/internal/eventart"
 	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/palette"
 	"github.com/v4run/tcal/internal/render"
 	"github.com/v4run/tcal/internal/scene"
 	"github.com/v4run/tcal/internal/scenes/rain"
+	"github.com/v4run/tcal/internal/smooth/eventart"
 )
 
 var smoothOpts = BackgroundOptions{Style: StyleSmooth}
@@ -140,6 +140,10 @@ func TestSmooth_DimOnLightAndDark(t *testing.T) {
 		runs = append(runs, run{name, func(m Model) Model { return m.WithBackground(name, smoothOpts) }})
 	}
 	bday := &events.MonthDay{Month: time.May, Day: 17}
+	// Every holiday has smooth art, so every event below is checked.
+	if n := len(eventart.Kinds()); n != 13 {
+		t.Fatalf("smooth eventart.Kinds() has %d kinds, want all 13", n)
+	}
 	hasArt := map[events.Kind]bool{}
 	for _, k := range eventart.Kinds() {
 		hasArt[k] = true

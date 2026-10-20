@@ -33,18 +33,19 @@ func TestNew_UnknownKindIsNil(t *testing.T) {
 	}
 }
 
-func TestKinds_FirstSix(t *testing.T) {
-	want := []events.Kind{events.NewYear, events.LunarNewYear, events.Holi, events.Eid, events.Diwali, events.Christmas}
-	got := map[events.Kind]bool{}
-	for _, k := range Kinds() {
-		got[k] = true
+func TestKinds_AllThirteen(t *testing.T) {
+	want := []events.Kind{
+		events.NewYear, events.Sankranti, events.LunarNewYear, events.Valentines, events.Holi,
+		events.Vishu, events.Eid, events.IndependenceDay, events.Onam, events.Halloween,
+		events.Diwali, events.Christmas, events.Birthday,
 	}
-	if len(got) != len(want) {
-		t.Fatalf("Kinds() = %v, want %v", Kinds(), want)
+	got := Kinds()
+	if len(got) != 13 || len(got) != len(want) {
+		t.Fatalf("Kinds() = %v, want all 13: %v", got, want)
 	}
-	for _, k := range want {
-		if !got[k] {
-			t.Errorf("Kinds() lacks %v", k)
+	for i, k := range want {
+		if got[i] != k {
+			t.Errorf("Kinds()[%d] = %v, want %v", i, got[i], k)
 		}
 	}
 }
@@ -652,5 +653,489 @@ func TestFireworks_FadeThinsSparks(t *testing.T) {
 	late := count()
 	if full == 0 || late >= full {
 		t.Errorf("cells at full %d, late in fade %d; want fewer late", full, late)
+	}
+}
+
+// A burst launched anywhere in the area keeps every spark inside it, even
+// after drooping to the end of its fade.
+func TestFireworks_SparksStayInArea(t *testing.T) {
+	for _, h := range []int{2, 3, 4, 6} {
+		fw := newFireworks(rand.New(rand.NewPCG(3, 4)), 2, scene.RGB{R: 200})
+		fw.resize(40, h)
+		var c dots.Canvas
+		launched := 0
+		for i := 0; i < 3000; i++ {
+			before := len(fw.bursts)
+			fw.step(dt, 0.3)
+			if len(fw.bursts) > before {
+				launched++
+			}
+			for _, b := range fw.bursts {
+				if low := b.y + b.r + fw.droop(fw.grow+fw.fade); low >= float64(h) {
+					t.Fatalf("h=%d: burst at y %.2f r %.2f droops to %.2f, past the area", h, b.y, b.r, low)
+				}
+				if b.y-b.r < 0 {
+					t.Fatalf("h=%d: burst at y %.2f r %.2f pokes above the area", h, b.y, b.r)
+				}
+			}
+			c.Reset(40, h+3)
+			fw.draw(&c, 0, 0)
+			for y := h; y < h+3; y++ {
+				for x := range 40 {
+					if c.Glyph(x, y) != 0 {
+						t.Fatalf("h=%d step %d: spark at row %d, below the area", h, i, y)
+					}
+				}
+			}
+		}
+		if launched == 0 {
+			t.Errorf("h=%d: no bursts launched", h)
+		}
+	}
+}
+
+// onamAt returns the Onam art at 120x40 on the given day of a days-long
+// occurrence, and the number of dots it draws.
+func onamAt(t *testing.T, day, days int) (*onam, int) {
+	t.Helper()
+	start := time.Date(2026, time.August, 26, 0, 0, 0, 0, time.UTC)
+	occ := events.Occurrence{Kind: events.Onam, Start: start, End: start.AddDate(0, 0, days)}
+	a := newArt(t, events.Onam).(*onam)
+	a.Resize(120, 40)
+	a.SetTime(start.AddDate(0, 0, day).Add(12*time.Hour), occ)
+	a.Step(dt)
+	return a, len(litDots(&a.f, nil))
+}
+
+// pookalamDots is the number of dots in the complete pookalam.
+func pookalamDots() int {
+	n := 0
+	for _, row := range pookalamRing {
+		for _, k := range row {
+			if k >= 0 {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func TestOnam_RingsGrowWithDay(t *testing.T) {
+	_, d0 := onamAt(t, 0, 10)
+	_, d4 := onamAt(t, 4, 10)
+	_, d9 := onamAt(t, 9, 10)
+	if !(0 < d0 && d0 < d4 && d4 < d9) {
+		t.Errorf("dots by day: day0 %d, day4 %d, day9 %d; want strictly growing", d0, d4, d9)
+	}
+	if full := pookalamDots(); d9 != full {
+		t.Errorf("last day draws %d dots, want the full pookalam's %d", d9, full)
+	}
+	if onamRings < 11 {
+		t.Errorf("%d rings, want at least 11 so no day before the last is full", onamRings)
+	}
+}
+
+func TestOnam_NineAndElevenDayYears(t *testing.T) {
+	full := pookalamDots()
+	for _, days := range []int{9, 10, 11} {
+		prev := 0
+		for day := 0; day < days; day++ {
+			a, n := onamAt(t, day, days)
+			if want := ((day+1)*onamRings + days - 1) / days; a.rings != want {
+				t.Errorf("%d-day Onam, day %d: %d rings, want %d", days, day, a.rings, want)
+			}
+			if last := day == days-1; last != (n == full) {
+				t.Errorf("%d-day Onam, day %d: %d dots, full is %d", days, day, n, full)
+			}
+			if n < prev {
+				t.Errorf("%d-day Onam, day %d: %d dots, fewer than the day before (%d)", days, day, n, prev)
+			}
+			prev = n
+		}
+	}
+}
+
+func TestHalloween_BatsFlap(t *testing.T) {
+	a := newArt(t, events.Halloween).(*halloween)
+	a.Resize(120, 40)
+	a.Step(dt)
+	// Per-cell bat glyphs (bat-coloured cells only). Comparing cells, not
+	// sorted runes, so two bats in opposite wing phase cannot cancel out.
+	bd := a.Bounds()
+	bats := func() map[[2]int]rune {
+		m := map[[2]int]rune{}
+		for y := bd.Y0; y < bd.Y0+bd.H; y++ {
+			for x := bd.X0; x < bd.X0+bd.W; x++ {
+				if r, c := a.Cell(x, y, emptyBox); r != 0 && c == batCol {
+					m[[2]int{x, y}] = r
+				}
+			}
+		}
+		return m
+	}
+	same := func(p, q map[[2]int]rune) bool {
+		if len(p) != len(q) {
+			return false
+		}
+		for pos, r := range p {
+			if q[pos] != r {
+				return false
+			}
+		}
+		return true
+	}
+	first := bats()
+	if len(first) == 0 {
+		t.Fatal("no bats drawn")
+	}
+	if len(litDots(&a.f, is(pumpkinCol))) < 40 {
+		t.Fatal("no pumpkin drawn")
+	}
+	changed := false
+	for i := 0; i < 36 && !changed; i++ {
+		a.Step(dt)
+		changed = !same(first, bats())
+	}
+	if !changed {
+		t.Error("no bat cell changed within 36 steps")
+	}
+	// Held in place, the bats still flap: their cells cycle through more
+	// than one shape and come back round to the first.
+	a.speed = 0
+	a.Step(dt)
+	still := bats()
+	shapes, back := 1, false
+	prev := still
+	for i := 0; i < 60; i++ {
+		a.Step(dt)
+		cur := bats()
+		if !same(cur, prev) {
+			shapes++
+			back = back || same(cur, still)
+		}
+		prev = cur
+	}
+	if shapes < 3 || !back {
+		t.Errorf("held still, bat cells changed shape %d times and returned=%v; want wings that beat", shapes-1, back)
+	}
+}
+
+func TestBirthday_CandlesFlicker(t *testing.T) {
+	a := newArt(t, events.Birthday).(*birthday)
+	a.Resize(120, 40)
+	a.Step(dt)
+	bd := a.Bounds()
+	// The flames are the cells of the row above the candles.
+	y := bd.Y0 + bd.H - cakeH
+	flames := func() (string, int) {
+		var s []rune
+		n := 0
+		for x := bd.X0; x < bd.X0+bd.W; x++ {
+			r, _ := a.Cell(x, y, emptyBox)
+			s = append(s, r)
+			if r != 0 {
+				n++
+			}
+		}
+		return string(s), n
+	}
+	first, n := flames()
+	if n < 3 || n > 5 || n != a.n {
+		t.Fatalf("%d flames for %d candles, want 3-5", n, a.n)
+	}
+	for i := 0; i < 30; i++ {
+		a.Step(dt)
+		if s, _ := flames(); s != first {
+			return
+		}
+	}
+	t.Error("no candle flickered within 30 steps")
+}
+
+func TestKites_HaveStrings(t *testing.T) {
+	a := newArt(t, events.Sankranti).(*sankranti)
+	a.Resize(120, 40)
+	if a.n < 2 || a.n > 4 {
+		t.Fatalf("%d kites, want 2-4", a.n)
+	}
+	for i := 0; i < 60; i++ {
+		a.Step(dt)
+		str := litDots(&a.f, is(kiteString))
+		fx, fy := a.flyer()
+		for k := range a.n {
+			if len(litDots(&a.f, is(a.cols[k]))) < 10 {
+				t.Fatalf("step %d: kite %d barely drawn", i, k)
+			}
+			tx, ty := a.tip(k)
+			// The string runs from the kite's tip down to the flyer. Its upper
+			// half may pass behind other kites; the lower half is clear.
+			for f := 0.5; f <= 0.95; f += 0.05 {
+				x, y := tx+(fx-tx)*f, ty+(fy-ty)*f
+				if !near(str, int(math.Floor(2*x)), int(math.Floor(4*y))) {
+					t.Fatalf("step %d: kite %d string missing at %.2f of the way (%.2f, %.2f)", i, k, f, x, y)
+				}
+			}
+		}
+	}
+}
+
+func TestKites_Bob(t *testing.T) {
+	a := newArt(t, events.Sankranti).(*sankranti)
+	a.Resize(120, 40)
+	a.Step(dt)
+	x0, y0 := a.tip(0)
+	for i := 0; i < 60; i++ {
+		a.Step(dt)
+		x, y := a.tip(0)
+		if math.Abs(x-x0) > 0.1 || math.Abs(y-y0) > 0.1 {
+			return
+		}
+	}
+	t.Error("kite did not move within 2 s")
+}
+
+func TestIndependence_FlagRipples(t *testing.T) {
+	a := newArt(t, events.IndependenceDay).(*independence)
+	a.Resize(120, 40)
+	a.Step(dt)
+	bd := a.Bounds()
+	if bd.X0 != edgeMargin || bd.Y0 != 1 {
+		t.Fatalf("bounds %+v not in the top-left corner", bd)
+	}
+	// Each band is its own cell row, saffron over white over green, with
+	// the navy wheel in the white band.
+	rowOf := map[scene.RGB]int{}
+	for y := 0; y < bd.H; y++ {
+		for x := 0; x < bd.W; x++ {
+			if g := a.f.c.Glyph(x, y); g != 0 {
+				c := a.f.c.RGB(x, y)
+				for _, band := range []scene.RGB{flagSaffron, flagWhite, flagGreen, chakraCol} {
+					if lerpBand(c, band) {
+						if r, ok := rowOf[band]; ok && r != y {
+							t.Errorf("%v in rows %d and %d", band, r, y)
+						}
+						rowOf[band] = y
+					}
+				}
+			}
+		}
+	}
+	s, ok1 := rowOf[flagSaffron]
+	w, ok2 := rowOf[flagWhite]
+	g, ok3 := rowOf[flagGreen]
+	c, ok4 := rowOf[chakraCol]
+	if !ok1 || !ok2 || !ok3 || !ok4 || !(s < w && w < g) || c != w {
+		t.Fatalf("band rows saffron %d white %d green %d wheel %d (%v %v %v %v)", s, w, g, c, ok1, ok2, ok3, ok4)
+	}
+	if len(litDots(&a.f, is(poleCol))) < 4*(bd.H-1) {
+		t.Error("pole too short")
+	}
+	snap := func() string {
+		var s []rune
+		for y := 0; y < 3; y++ {
+			for x := 1; x < bd.W; x++ {
+				s = append(s, a.f.c.Glyph(x, y))
+			}
+		}
+		return string(s)
+	}
+	first := snap()
+	for i := 0; i < 30; i++ {
+		a.Step(dt)
+		if snap() != first {
+			return
+		}
+	}
+	t.Error("cloth did not ripple within 1 s")
+}
+
+// lerpBand reports whether c is band shaded by the ripple: the same hue,
+// scaled by some brightness.
+func lerpBand(c, band scene.RGB) bool {
+	for k := 0.5; k <= 1.0001; k += 0.01 {
+		s := scale(band, k)
+		if abs(int(s.R)-int(c.R)) <= 1 && abs(int(s.G)-int(c.G)) <= 1 && abs(int(s.B)-int(c.B)) <= 1 {
+			return true
+		}
+	}
+	return false
+}
+
+func TestValentines_HeartsRise(t *testing.T) {
+	a := newArt(t, events.Valentines).(*valentines)
+	a.Resize(120, 40)
+	a.Step(dt)
+	if n := len(a.hearts); n < heartMin || n > heartMax {
+		t.Fatalf("%d hearts, want %d-%d", n, heartMin, heartMax)
+	}
+	before := make([]float64, len(a.hearts))
+	for i, p := range a.hearts {
+		before[i] = p.y
+	}
+	for range 15 {
+		a.Step(dt)
+	}
+	rose := 0
+	for i, p := range a.hearts {
+		if p.y < before[i] {
+			rose++
+		}
+	}
+	if rose < len(a.hearts)-1 {
+		t.Errorf("%d of %d hearts rose in 0.5 s", rose, len(a.hearts))
+	}
+	// Low hearts are red, high ones pinker.
+	red, pink := 0, 0
+	for range 300 {
+		a.Step(dt)
+		w, h := a.f.c.Size()
+		for y := range h {
+			for x := range w {
+				if a.f.c.Glyph(x, y) == 0 {
+					continue
+				}
+				switch c := a.f.c.RGB(x, y); {
+				case y >= h/2 && c == heartRed:
+					red++
+				case y < h/2 && c != heartRed:
+					pink++
+				}
+			}
+		}
+	}
+	if red == 0 || pink == 0 {
+		t.Errorf("red cells low %d, pinker cells high %d", red, pink)
+	}
+}
+
+func TestVishu_FlowersFallLampLit(t *testing.T) {
+	a := newArt(t, events.Vishu).(*vishu)
+	a.Resize(120, 40)
+	a.Step(dt)
+	bd := a.Bounds()
+	if bd.X0+bd.W != 120-edgeMargin || bd.Y0+bd.H != 39 {
+		t.Fatalf("bounds %+v not against the bottom-right corner", bd)
+	}
+	if len(litDots(&a.f, is(lampCol))) < 30 {
+		t.Fatal("no lamp drawn")
+	}
+	// Three flames sit in the row above the lamp's dish.
+	fy := bd.H - lampH
+	flames := func() string {
+		var s []rune
+		for x := 0; x < bd.W; x++ {
+			if c := a.f.c.RGB(x, fy); a.f.c.Glyph(x, fy) != 0 && c != konnaCol {
+				s = append(s, a.f.c.Glyph(x, fy))
+			}
+		}
+		return string(s)
+	}
+	first := flames()
+	if n := len([]rune(first)); n < 3 {
+		t.Fatalf("%d flame cells, want 3", n)
+	}
+	before := make([]float64, len(a.flowers))
+	for i, p := range a.flowers {
+		before[i] = p.y
+	}
+	flickered := false
+	for range 30 {
+		a.Step(dt)
+		flickered = flickered || flames() != first
+	}
+	if !flickered {
+		t.Error("no flame flickered within 1 s")
+	}
+	fell := 0
+	for i, p := range a.flowers {
+		if p.y > before[i] {
+			fell++
+		}
+	}
+	if fell < len(a.flowers)-1 {
+		t.Errorf("%d of %d flowers fell in 1 s", fell, len(a.flowers))
+	}
+	if len(litDots(&a.f, is(konnaCol))) == 0 {
+		t.Error("no konna flowers drawn")
+	}
+}
+
+// Motion is scaled by the step: thirty 33 ms steps and fifteen 66 ms steps
+// leave each glider in the same place.
+func TestSetB_MotionScalesWithDt(t *testing.T) {
+	type pos func(a Art) []float64
+	cases := []struct {
+		k   events.Kind
+		pos pos
+	}{
+		{events.Sankranti, func(a Art) []float64 {
+			s := a.(*sankranti)
+			var out []float64
+			for i := range s.n {
+				x, y := s.tip(i)
+				out = append(out, x, y)
+			}
+			return out
+		}},
+		{events.Valentines, func(a Art) []float64 {
+			var out []float64
+			for _, p := range a.(*valentines).hearts {
+				out = append(out, p.y)
+			}
+			return out
+		}},
+		{events.Vishu, func(a Art) []float64 {
+			var out []float64
+			for _, p := range a.(*vishu).flowers {
+				out = append(out, p.y)
+			}
+			return out
+		}},
+		{events.Birthday, func(a Art) []float64 {
+			var out []float64
+			for _, p := range a.(*birthday).confetti {
+				out = append(out, p.y)
+			}
+			return out
+		}},
+	}
+	for _, c := range cases {
+		run := func(step time.Duration, n int) (before, after []float64) {
+			a := newArt(t, c.k)
+			a.Resize(120, 40)
+			before = c.pos(a)
+			for range n {
+				a.Step(step)
+			}
+			return before, c.pos(a)
+		}
+		start, fine := run(dt, 30)
+		_, coarse := run(2*dt, 15)
+		// A piece that falls (or, for hearts, rises) off the end restarts
+		// at random, so only pieces still on their first pass are compared.
+		// Kites never restart.
+		onward := func(i int, y float64) bool {
+			switch c.k {
+			case events.Sankranti:
+				return true
+			case events.Valentines:
+				return y < start[i]
+			default:
+				return y > start[i]
+			}
+		}
+		same, kept := 0, 0
+		for i := range fine {
+			if !onward(i, fine[i]) || !onward(i, coarse[i]) {
+				continue
+			}
+			kept++
+			if math.Abs(fine[i]-coarse[i]) < 1e-9 {
+				same++
+			}
+		}
+		if kept == 0 || same != kept {
+			t.Errorf("%v: %d of %d positions agree across step sizes: %v vs %v", c.k, same, len(fine), fine, coarse)
+		}
 	}
 }

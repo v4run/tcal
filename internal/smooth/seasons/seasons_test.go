@@ -193,11 +193,11 @@ func TestSeasons_DrawsEventArt(t *testing.T) {
 	}
 }
 
-// A holiday with no art yet builds none: an untyped nil, not a typed nil
-// that would read as present.
+// A kind with no art builds none: an untyped nil, not a typed nil that
+// would read as present. Every real holiday has art, Halloween included.
 func TestSeasons_NoArtForKindWithout(t *testing.T) {
-	if a := newArt(events.Halloween, rand.New(rand.NewPCG(1, 2))); a != nil {
-		t.Fatalf("newArt(Halloween) = %T, want nil", a)
+	if a := newArt(events.Kind(-1), rand.New(rand.NewPCG(1, 2))); a != nil {
+		t.Fatalf("newArt(unknown) = %T, want nil", a)
 	}
 	s := newTest(120, 40)
 	s.EnableEvents(nil)
@@ -206,8 +206,8 @@ func TestSeasons_NoArtForKindWithout(t *testing.T) {
 	if k, ok := s.Event(); !ok || k != events.Halloween {
 		t.Fatalf("Event() = %v, %v", k, ok)
 	}
-	if s.art != nil {
-		t.Fatalf("art %T for Halloween", s.art)
+	if s.art == nil {
+		t.Fatal("no art for Halloween")
 	}
 	s.Step(dt)
 	s.Glyph(0, 0, noBox)

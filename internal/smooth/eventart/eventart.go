@@ -181,3 +181,38 @@ func columnHeight(h, minH, maxH int) int {
 	}
 	return ch
 }
+
+// shape is a small bitmap as a list of dot offsets, for art that thins out
+// or recolours dot by dot where a dots.Sprite draws all or nothing.
+type shape [][2]int
+
+// parseShape builds a shape from rows where '#' is a dot.
+func parseShape(rows ...string) shape {
+	var s shape
+	for y, row := range rows {
+		for x, r := range row {
+			if r == '#' {
+				s = append(s, [2]int{x, y})
+			}
+		}
+	}
+	return s
+}
+
+// size is the shape's extent in dots.
+func (s shape) size() (dw, dh int) {
+	for _, p := range s {
+		dw, dh = max(dw, p[0]+1), max(dh, p[1]+1)
+	}
+	return dw, dh
+}
+
+// draw puts the shape's dots with its top-left at cell-unit (x, y), skipping
+// dot i when keep is non-nil and returns false.
+func (s shape) draw(c *dots.Canvas, x, y float64, col scene.RGB, keep func(i int) bool) {
+	for i, p := range s {
+		if keep == nil || keep(i) {
+			c.Dot(x+float64(p[0])/2, y+float64(p[1])/4, col)
+		}
+	}
+}
