@@ -8,6 +8,7 @@ import (
 	"github.com/v4run/tcal/internal/smooth/hourglass"
 	"github.com/v4run/tcal/internal/smooth/lava"
 	"github.com/v4run/tcal/internal/smooth/rain"
+	"github.com/v4run/tcal/internal/smooth/seasons"
 	"github.com/v4run/tcal/internal/smooth/sky"
 	"github.com/v4run/tcal/internal/smooth/starfield"
 )
@@ -54,5 +55,12 @@ var smoothBackgrounds = map[string]func(w, h int, rng *rand.Rand, o BackgroundOp
 	},
 	"sky": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
 		return sky.New(w, h, rng)
+	},
+	"seasons": func(w, h int, rng *rand.Rand, o BackgroundOptions) scene.Scene {
+		s := seasons.New(w, h, rng)
+		if o.Events {
+			s.EnableEvents(o.Birthday)
+		}
+		return s
 	},
 }
