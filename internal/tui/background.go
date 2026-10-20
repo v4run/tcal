@@ -254,8 +254,8 @@ func overlay(frame string, sc scene.Scene, w, h int, p bgPaint) string {
 // cells renders row y of sc over columns [from, to) as glyphs and spaces.
 // Color escapes are emitted only when the color changes between glyphs.
 // True-colour scenes are blended toward p.bg by keepFactor, then emitted as
-// 24-bit escapes in TrueColor mode or, in ANSI mode, as the palette colour
-// nearest the unblended scene colour.
+// 24-bit escapes (without faint) in TrueColor mode or, in ANSI mode, as the
+// palette colour nearest the unblended scene colour.
 func cells(sc scene.Scene, y, from, to int, b scene.Box, p bgPaint) string {
 	if from >= to {
 		return ""
@@ -265,8 +265,11 @@ func cells(sc scene.Scene, y, from, to int, b scene.Box, p bgPaint) string {
 	if p.style != styleColor {
 		colored, trueColored = nil, nil
 	}
+	// In true colour the blend toward the background already dims the
+	// scene; faint on top would dim it twice.
+	faint := p.style != stylePlain && (trueColored == nil || p.mode != palette.TrueColor)
 	var sb strings.Builder
-	if p.style != stylePlain {
+	if faint {
 		sb.WriteString(faintOn)
 	}
 	cur := scene.Default
@@ -306,7 +309,7 @@ func cells(sc scene.Scene, y, from, to int, b scene.Box, p bgPaint) string {
 	if cur != scene.Default || rgbSet {
 		sb.WriteString(fgReset)
 	}
-	if p.style != stylePlain {
+	if faint {
 		sb.WriteString(faintOff)
 	}
 	return sb.String()

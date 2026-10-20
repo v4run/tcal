@@ -69,7 +69,7 @@ type rgbScene struct{ fakeScene }
 func (r *rgbScene) RGB(int, int, scene.Box) scene.RGB { return r.rgb }
 
 // dimViolation sweeps sc over w × h and returns the first colour that, blended
-// toward bg by keep, contrasts with bg by more than 4.5. checked counts the
+// toward bg by keep, contrasts with bg by more than dimLimit. checked counts the
 // coloured cells seen.
 func dimViolation(sc scene.Scene, w, h int, bg scene.RGB, keep float64) (bad scene.RGB, ratio float64, checked int) {
 	tc, ok := sc.(scene.TrueColored)
@@ -84,7 +84,7 @@ func dimViolation(sc scene.Scene, w, h int, bg scene.RGB, keep float64) (bad sce
 			}
 			checked++
 			c := palette.Blend(tc.RGB(x, y, empty), bg, keep)
-			if r := palette.Contrast(c, bg); r > 4.5 {
+			if r := palette.Contrast(c, bg); r > dimLimit {
 				return c, r, checked
 			}
 		}
@@ -110,7 +110,7 @@ func TestSmooth_DimCheckCanFail(t *testing.T) {
 			t.Errorf("%s: unblended colour passed the dimness check", tc.name)
 		}
 		if c, r, n := dimViolation(sc, 4, 4, tc.bg, keepFactor); r != 0 || n == 0 {
-			t.Errorf("%s: blended %v has contrast %.2f > 4.5", tc.name, c, r)
+			t.Errorf("%s: blended %v has contrast %.2f > %.1f", tc.name, c, r, dimLimit)
 		}
 	}
 }
@@ -120,8 +120,8 @@ func TestSmooth_DimCheckCanFail(t *testing.T) {
 func TestKeepFactor_WorstCase(t *testing.T) {
 	for _, bg := range []scene.RGB{palette.Dark, palette.Light} {
 		for _, c := range []scene.RGB{{R: 255, G: 255, B: 255}, {}, {R: 255}, {G: 255}, {B: 255}, {R: 255, G: 255}, {G: 255, B: 255}, {R: 255, B: 255}} {
-			if r := palette.Contrast(palette.Blend(c, bg, keepFactor), bg); r > 4.5 {
-				t.Errorf("%v on %v: contrast %.2f > 4.5", c, bg, r)
+			if r := palette.Contrast(palette.Blend(c, bg, keepFactor), bg); r > dimLimit {
+				t.Errorf("%v on %v: contrast %.2f > %.1f", c, bg, r, dimLimit)
 			}
 		}
 	}
@@ -171,7 +171,7 @@ func TestSmooth_DimOnLightAndDark(t *testing.T) {
 			for i := range 100 {
 				m, at = stepModel(m, at, 1)
 				if c, ratio, _ := dimViolation(m.bg, w, h, bg, keepFactor); ratio != 0 {
-					t.Fatalf("%s on %v step %d: %v has contrast %.2f > 4.5", r.label, bg, i, c, ratio)
+					t.Fatalf("%s on %v step %d: %v has contrast %.2f > %.1f", r.label, bg, i, c, ratio, dimLimit)
 				}
 			}
 		}
@@ -400,8 +400,11 @@ func overlayModel(mode palette.Mode, color bool) Model {
 func TestOverlay_TrueColorEmits24Bit(t *testing.T) {
 	got := overlayModel(palette.TrueColor, true).View()
 	want := palette.Blend(scene.RGB{R: 200, G: 40, B: 40}, palette.Dark, keepFactor)
-	if esc := fmt.Sprintf("\x1b[38;2;%d;%d;%dm", want.R, want.G, want.B); !strings.Contains(got, faintOn+esc+"⣿") {
+	if esc := fmt.Sprintf("\x1b[38;2;%d;%d;%dm", want.R, want.G, want.B); !strings.Contains(got, esc+"⣿") {
 		t.Errorf("true colour mode did not emit the blended %q", esc)
+	}
+	if strings.Contains(got, faintOn) {
+		t.Error("true colour mode drew the scene faint on top of the blend")
 	}
 	assertColorWellFormed(t, "truecolor", got)
 

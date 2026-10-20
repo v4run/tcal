@@ -28,11 +28,16 @@ const (
 func Styles() []string { return []string{StyleClassic, StyleSmooth} }
 
 // keepFactor is how much of a true-colour scene's colour survives blending
-// toward the terminal background. The worst case is pure white on black:
-// at 0.45 it becomes {115,115,115}, a WCAG contrast of 4.43 against black
-// (the limit, 4.5, is crossed at 0.46). Pure black on white becomes
-// {140,140,140}, a contrast of 3.36.
-const keepFactor = 0.45
+// toward the terminal background. True-colour cells are not also drawn
+// faint, so the blend alone keeps them dim. The worst case is pure white on
+// black: at 0.75 it becomes {191,191,191}, a WCAG contrast of 11.4 against
+// black, well under the 21 of the calendar's own text. Pure black on white
+// becomes {64,64,64}, a contrast of 10.4.
+const keepFactor = 0.75
+
+// dimLimit is the highest WCAG contrast a blended true-colour background
+// cell may have against the terminal background.
+const dimLimit = 12.0
 
 // smoothBackgrounds holds the smooth style's constructors; it is the only
 // place they are listed. A name missing here falls back to its classic
