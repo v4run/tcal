@@ -4,6 +4,8 @@ import (
 	"math/rand/v2"
 
 	"github.com/v4run/tcal/internal/scene"
+	"github.com/v4run/tcal/internal/smooth/aquarium"
+	"github.com/v4run/tcal/internal/smooth/container"
 	"github.com/v4run/tcal/internal/smooth/flow"
 	"github.com/v4run/tcal/internal/smooth/harbor"
 	"github.com/v4run/tcal/internal/smooth/hourglass"
@@ -70,5 +72,11 @@ var smoothBackgrounds = map[string]func(w, h int, rng *rand.Rand, o BackgroundOp
 	},
 	"train": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
 		return train.New(w, h, rng)
+	},
+	"container": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
+		return container.New(w, h, rng)
+	},
+	"aquarium": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
+		return aquarium.New(w, h, rng)
 	},
 }

@@ -330,6 +330,15 @@ func TestSmooth_FallsBackToClassic(t *testing.T) {
 	}
 }
 
+// Every background has a smooth entry, so the fallback is only a safety net.
+func TestSmooth_EveryBackgroundRegistered(t *testing.T) {
+	for _, name := range Backgrounds() {
+		if _, ok := smoothBackgrounds[name]; !ok {
+			t.Errorf("%q has no smooth entry", name)
+		}
+	}
+}
+
 func stepperModel(sc scene.Scene) Model {
 	m := runnerModel(100, 40)
 	m.bg = sc
