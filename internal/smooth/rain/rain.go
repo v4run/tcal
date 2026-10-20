@@ -26,7 +26,7 @@ const (
 var (
 	dropCol   = scene.RGB{R: 110, G: 150, B: 230}
 	splashCol = scene.RGB{R: 120, G: 200, B: 210}
-	groundCol = scene.RGB{R: 150, G: 150, B: 150}
+	groundCol = scene.RGB{R: 55, G: 55, B: 60}
 	noBox     = scene.Box{Y0: -1, Y1: -1}
 )
 
