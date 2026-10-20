@@ -58,3 +58,18 @@ const (
 type Colored interface {
 	Color(x, y int, b Box) Color
 }
+
+// RGB is a 24-bit true colour.
+type RGB struct{ R, G, B uint8 }
+
+// TrueColored is implemented by scenes that draw in 24-bit colour. RGB is
+// only called for cells where Glyph returned a rune.
+type TrueColored interface {
+	RGB(x, y int, b Box) RGB
+}
+
+// Stepper is implemented by scenes that advance by elapsed time. When a scene
+// implements it, the TUI calls Step instead of Tick.
+type Stepper interface {
+	Step(dt time.Duration)
+}
