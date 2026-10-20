@@ -258,6 +258,9 @@ func TestSmooth_FrameCost(t *testing.T) {
 	if testing.Short() {
 		t.Skip("timing test")
 	}
+	if raceEnabled {
+		t.Skip("timing budget does not hold under the race detector")
+	}
 	const w, h, frames = 200, 60, 30
 	empty := scene.Box{Y0: -1, Y1: -1}
 	for _, name := range Backgrounds() {

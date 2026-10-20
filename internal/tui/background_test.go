@@ -12,6 +12,7 @@ import (
 	"github.com/v4run/tcal/internal/eventart"
 	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/life"
+	"github.com/v4run/tcal/internal/palette"
 	"github.com/v4run/tcal/internal/render"
 	"github.com/v4run/tcal/internal/runner"
 	"github.com/v4run/tcal/internal/scene"
@@ -363,5 +364,22 @@ func TestSeasons_EventSwitchesAtMidnight(t *testing.T) {
 	m = next.(Model)
 	if k, ok := m.bg.(*seasons.Scene).Event(); !ok || k != events.Christmas {
 		t.Errorf("Dec 1 00:00:01: Event() = %v, %v; want christmas, true", k, ok)
+	}
+}
+
+// hueScene is a true-colour scene of one fixed colour.
+type hueScene struct{ c scene.RGB }
+
+func (hueScene) Resize(int, int)                     {}
+func (hueScene) Tick()                               {}
+func (hueScene) Interval() time.Duration             { return time.Second }
+func (hueScene) Glyph(int, int, scene.Box) rune      { return 'x' }
+func (h hueScene) RGB(int, int, scene.Box) scene.RGB { return h.c }
+
+func TestCells_ANSIFallbackKeepsHue(t *testing.T) {
+	sc := hueScene{scene.RGB{R: 200, G: 120, B: 120}}
+	got := cells(sc, 0, 0, 1, scene.Box{Y0: -1, Y1: -1}, bgPaint{style: styleColor, mode: palette.ANSI, bg: palette.Light})
+	if !strings.Contains(got, "31m") {
+		t.Errorf("got %q; want red (31m)", got)
 	}
 }

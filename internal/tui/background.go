@@ -254,8 +254,8 @@ func overlay(frame string, sc scene.Scene, w, h int, p bgPaint) string {
 // cells renders row y of sc over columns [from, to) as glyphs and spaces.
 // Color escapes are emitted only when the color changes between glyphs.
 // True-colour scenes are blended toward p.bg by keepFactor, then emitted as
-// 24-bit escapes in TrueColor mode or as the nearest palette colour in ANSI
-// mode.
+// 24-bit escapes in TrueColor mode or, in ANSI mode, as the palette colour
+// nearest the unblended scene colour.
 func cells(sc scene.Scene, y, from, to int, b scene.Box, p bgPaint) string {
 	if from >= to {
 		return ""
@@ -280,7 +280,8 @@ func cells(sc scene.Scene, y, from, to int, b scene.Box, p bgPaint) string {
 		}
 		switch {
 		case trueColored != nil:
-			rgb := palette.Blend(trueColored.RGB(x, y, b), p.bg, keepFactor)
+			raw := trueColored.RGB(x, y, b)
+			rgb := palette.Blend(raw, p.bg, keepFactor)
 			if p.mode == palette.TrueColor {
 				if !rgbSet || rgb != curRGB {
 					fmt.Fprintf(&sb, "\x1b[38;2;%d;%d;%dm", rgb.R, rgb.G, rgb.B)
@@ -288,7 +289,9 @@ func cells(sc scene.Scene, y, from, to int, b scene.Box, p bgPaint) string {
 				}
 				break
 			}
-			if c := palette.Nearest(rgb); c != cur {
+			// Nearest of the unblended colour: blending toward a light
+			// background desaturates and would lose the hue.
+			if c := palette.Nearest(raw); c != cur {
 				sb.WriteString(sgrColor(c))
 				cur = c
 			}

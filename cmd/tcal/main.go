@@ -101,13 +101,20 @@ func run(args []string, stdout, stderr *os.File) error {
 	}
 	if rc.bg != "" {
 		// Ask the terminal for its background once, before Bubble Tea owns it.
-		termBg := palette.Light
-		if lipgloss.HasDarkBackground() {
-			termBg = palette.Dark
+		// Only smooth, coloured output needs it; the query would change
+		// classic startup.
+		termBg := palette.Dark
+		if rc.bgStyle == tui.StyleSmooth && !rc.bgMono && rc.opts.Color && !lipgloss.HasDarkBackground() {
+			termBg = palette.Light
 		}
 		model = model.WithBackgroundPalette(rc.bgPalette, termBg)
 	}
-	prog := tea.NewProgram(model, tea.WithAltScreen())
+	progOpts := []tea.ProgramOption{tea.WithAltScreen()}
+	if rc.bgStyle == tui.StyleSmooth {
+		// Bubble Tea v1.3.10 never emits DEC 2026; bracket each frame flush.
+		progOpts = append(progOpts, tea.WithOutput(tui.NewSyncWriter(os.Stdout)))
+	}
+	prog := tea.NewProgram(model, progOpts...)
 	_, err = prog.Run()
 	return err
 }
