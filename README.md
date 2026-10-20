@@ -55,6 +55,8 @@ tcal --print | lpr
 | `--bg`           | `none`         | `none`, `random`, or a name from [Backgrounds](#backgrounds) (live mode only) |
 | `--bg-color`     | `true`         | tint the background; `false` draws it dim in the foreground color |
 | `--bg-time`      | now            | time seen by `sky`/`hourglass` and by [events](#events): `HH:MM`, `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM` |
+| `--bg-style`     | `classic`      | `classic \| smooth`; see [Smooth style](#smooth-style) |
+| `--bg-palette`   | `auto`         | `auto \| truecolor \| ansi`; colors used by the smooth style |
 | `--events`       | `true`         | show holiday scenes in the `seasons` background; `--events=false` turns them off |
 | `--config`       | see [Config file](#config-file) | read this config file instead of the default; an error if it is missing |
 
@@ -91,6 +93,24 @@ tcal --bg hourglass --bg-time 10:55         # nearly full hourglass
 ```
 
 `seasons` follows the month on screen — page with `h`/`l` to change the season.
+
+## Smooth style
+
+`--bg-style smooth` redraws every background with braille dots, at about 30 frames per second, and in true colour where the terminal supports it. It looks finer and moves more fluidly than the default. `life`, `langton`, `automaton` and `ants` are cell grids, so they look the same in both styles.
+
+```
+tcal --bg-style smooth --bg rain
+```
+
+`classic` is still the default, and will be retired in a later release. To make smooth your default, set it in the [config file](#config-file):
+
+```toml
+bg-style = "smooth"
+```
+
+**True colour.** With `--bg-palette auto` (the default), smooth uses true colour when `COLORTERM` is `truecolor` or `24bit`, and otherwise falls back to the 16-color palette like classic. Some terminals support true colour without setting `COLORTERM`, and tmux often hides it. To force it, use `--bg-palette truecolor` or `bg-palette = "truecolor"` in the config; `--bg-palette ansi` forces the 16 colors. `NO_COLOR` and `--no-color` win over `--bg-palette`: with no color there is no tint at all.
+
+**Synchronized output.** In smooth style, tcal wraps each screen update in the synchronized-output sequence (mode 2026) so that terminals which support it draw the frame at once without tearing. Bubble Tea does not send this itself, so tcal does. Terminals that do not support it ignore it. Classic style does not send it.
 
 ## Events
 
@@ -142,6 +162,8 @@ with-clock  = true
 no-color    = false
 bg          = "random"      # none | random | <background name>
 bg-color    = true
+bg-style    = "classic"    # classic | smooth
+bg-palette  = "auto"       # auto | truecolor | ansi
 events      = true
 
 # Personal
@@ -176,6 +198,10 @@ After any change to layout/centering code, run through:
 - [ ] `NO_COLOR=1 tcal --bg life` — cells render as plain `·` with no escapes.
 - [ ] `tcal --bg aquarium` vs `tcal --bg aquarium --bg-color=false` — tinted vs plain dim; `NO_COLOR=1` shows no escapes.
 - [ ] `tcal --bg sky --bg-time 22:30` — night sky and moon, while the calendar header shows the real time.
+- [ ] `tcal --bg-style smooth --bg rain` — braille drizzle, smooth motion.
+- [ ] `COLORTERM= tcal --bg-style smooth --bg sky` — ANSI fallback: 16-color tinting only, still recognisable.
+- [ ] `COLORTERM= tcal --bg-style smooth --bg sky --bg-palette truecolor` — full true colour even with `COLORTERM` unset.
+- [ ] `tcal --bg-style smooth --bg seasons --bg-time 2026-12-25` — a smooth Christmas scene; `--events=false` removes it.
 - [ ] `tcal --bg random` a few times — a different background each launch; none ever draw over the calendar.
 - [ ] `tcal --bg container` in a tall terminal — a shipping container slides along the bottom and hops every bush; shrink the window until the strip would touch the calendar and it disappears.
 - [ ] `tcal --bg seasons --bg-time 2026-12-25` — a Christmas tree with twinkling lights in a corner; `--events=false` removes it.
