@@ -4,7 +4,9 @@ import (
 	"math/rand/v2"
 
 	"github.com/v4run/tcal/internal/scene"
+	"github.com/v4run/tcal/internal/smooth/flow"
 	"github.com/v4run/tcal/internal/smooth/rain"
+	"github.com/v4run/tcal/internal/smooth/starfield"
 )
 
 // Background styles. Classic draws one glyph per cell in the 16-colour
@@ -34,5 +36,11 @@ var smoothBackgrounds = map[string]func(w, h int, rng *rand.Rand, o BackgroundOp
 	"ants":      backgrounds["ants"],
 	"rain": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
 		return rain.New(w, h, rng)
+	},
+	"starfield": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
+		return starfield.New(w, h, rng)
+	},
+	"flow": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
+		return flow.New(w, h, rng)
 	},
 }
