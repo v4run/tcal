@@ -144,3 +144,71 @@ func TestSeasons_ResizeAndTinyScreens(t *testing.T) {
 		s.Glyph(0, 0, noBox)
 	}
 }
+
+// On Christmas Day the tree from the event art shows through Glyph and RGB,
+// covering the particles in its corner.
+func TestSeasons_DrawsEventArt(t *testing.T) {
+	const w, h = 120, 40
+	s := newTest(w, h)
+	s.EnableEvents(nil)
+	xmas := at(2026, time.December, 25, 12)
+	s.SetTime(xmas, xmas)
+	for range 10 {
+		s.Step(dt)
+	}
+	if s.art == nil {
+		t.Fatal("no event art on Christmas Day")
+	}
+	// The tree is in the bottom-right corner.
+	tree := 0
+	for y := h - 10; y < h; y++ {
+		for x := w - 15; x < w; x++ {
+			r, c := s.art.Cell(x, y, noBox)
+			if r == 0 {
+				continue
+			}
+			tree++
+			if g := s.Glyph(x, y, noBox); g != r {
+				t.Fatalf("Glyph(%d, %d) = %q, want the tree's %q", x, y, g, r)
+			}
+			if got := s.RGB(x, y, noBox); got != c {
+				t.Fatalf("RGB(%d, %d) = %v, want the tree's %v", x, y, got, c)
+			}
+		}
+	}
+	if tree < 20 {
+		t.Fatalf("tree has %d cells, want a whole tree", tree)
+	}
+	if s.Glyph(w-8, h-9, noBox) != '*' {
+		t.Errorf("no star atop the tree")
+	}
+	// Beside the calendar the art hides and the particles show instead.
+	box := scene.Box{X0: 0, X1: w, Y0: 0, Y1: h - 1}
+	for y := h - 10; y < h; y++ {
+		for x := w - 15; x < w; x++ {
+			if g := s.Glyph(x, y, box); g != s.canvas.Glyph(x, y) {
+				t.Fatalf("Glyph(%d, %d) = %q under the calendar, want the particle layer", x, y, g)
+			}
+		}
+	}
+}
+
+// A holiday with no art yet builds none: an untyped nil, not a typed nil
+// that would read as present.
+func TestSeasons_NoArtForKindWithout(t *testing.T) {
+	if a := newArt(events.Halloween, rand.New(rand.NewPCG(1, 2))); a != nil {
+		t.Fatalf("newArt(Halloween) = %T, want nil", a)
+	}
+	s := newTest(120, 40)
+	s.EnableEvents(nil)
+	hw := at(2026, time.October, 31, 20)
+	s.SetTime(hw, hw)
+	if k, ok := s.Event(); !ok || k != events.Halloween {
+		t.Fatalf("Event() = %v, %v", k, ok)
+	}
+	if s.art != nil {
+		t.Fatalf("art %T for Halloween", s.art)
+	}
+	s.Step(dt)
+	s.Glyph(0, 0, noBox)
+}

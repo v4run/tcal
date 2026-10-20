@@ -3,7 +3,7 @@
 // the month the calendar is showing (northern hemisphere): snow in winter,
 // tumbling petals in spring, softly blinking fireflies in summer and
 // swaying leaves in autumn. With events enabled, the active holiday is
-// reported by Event and, once event art exists, drawn over the particles;
+// reported by Event and its art, if it has any, drawn over the particles;
 // the event follows the real (shifted) time, not the shown month.
 package seasons
 
@@ -15,6 +15,7 @@ import (
 	"github.com/v4run/tcal/internal/dots"
 	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/scene"
+	"github.com/v4run/tcal/internal/smooth/eventart"
 )
 
 var (
@@ -100,8 +101,8 @@ type particle struct {
 	glow  float64 // fireflies: seconds into the blink cycle; <0 is dark wait
 }
 
-// eventArt is the holiday art drawn over the particles. Task 10's
-// eventart.Art satisfies it (it also has Bounds, which seasons never needs).
+// eventArt is the holiday art drawn over the particles. eventart.Art
+// satisfies it (it also has Bounds, which seasons never needs).
 type eventArt interface {
 	Resize(w, h int)
 	Step(dt time.Duration)
@@ -110,8 +111,14 @@ type eventArt interface {
 }
 
 // newArt builds the art for a holiday kind, or returns nil when the kind has
-// none. It is nil until the smooth event art exists, so no art is drawn.
-var newArt func(kind events.Kind, rng *rand.Rand) eventArt
+// none. The nil is untyped: a nil eventart.Art wrapped in eventArt would not
+// compare equal to nil.
+func newArt(kind events.Kind, rng *rand.Rand) eventArt {
+	if a := eventart.New(kind, rng); a != nil {
+		return a
+	}
+	return nil
+}
 
 // Scene is a field of seasonal particles over a w×h screen.
 type Scene struct {
@@ -176,7 +183,7 @@ func (s *Scene) SetTime(now, shown time.Time) {
 		if ok != s.hasEvent || occ.Kind != s.event {
 			s.event, s.hasEvent = occ.Kind, ok
 			s.art = nil
-			if ok && newArt != nil {
+			if ok {
 				s.art = newArt(occ.Kind, rand.New(rand.NewPCG(s.rng.Uint64(), s.rng.Uint64())))
 			}
 			if s.art != nil {
