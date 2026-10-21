@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"os"
+
 	"fmt"
+	"github.com/v4run/tcal/internal/smooth/coast"
 	"maps"
 	"math/rand/v2"
 	"slices"
@@ -142,6 +145,9 @@ func newScene(name string, w, h int, o BackgroundOptions, bgNow time.Time) scene
 				name = "seasons"
 			}
 		}
+	}
+	if spike := os.Getenv("TCAL_SPIKE"); spike == "coast" { // SPIKE
+		return coast.New(w, h, rng)
 	}
 	ctor, ok := smoothBackgrounds[name]
 	if o.Style != StyleSmooth || !ok {
