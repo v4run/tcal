@@ -1,8 +1,8 @@
-// Package trees is the smooth trees scene: a row of trees along the bottom
-// of the screen that follow the season of the month on screen. Blossoms
-// drift off them in spring, a leaf now and then in summer, many in autumn,
-// and snow slips off bare branches in winter. Fallen leaves rest on the
-// ground for a while, then fade.
+// Package trees is the smooth trees scene: a large tree in each margin
+// beside the calendar that follows the season of the month on screen.
+// Blossoms drift off them in spring, a leaf now and then in summer, many in
+// autumn, and snow slips off bare branches in winter. Fallen leaves rest on
+// the ground for a while, then fade.
 package trees
 
 import (
@@ -15,27 +15,21 @@ import (
 	"github.com/v4run/tcal/internal/smooth/seasons"
 )
 
-// Height is the number of rows the strip occupies at the bottom of the
-// screen.
-const Height = 10
-
-// MinWidth is the narrowest screen the scene will draw on.
-const MinWidth = 40
-
 const step = 33 * time.Millisecond
 
-// Dot geometry of the strip (Height*4 = 40 dot rows).
-const groundRow = 38
+// minMargin is the narrowest margin, in columns, that gets a tree.
+const minMargin = 12
 
 const (
-	fallSpeed = 5.0  // dots per second, downwards
-	swayAmp   = 2.5  // dots
+	fallSpeed = 6.0  // dots per second, downwards
+	swayAmp   = 3.0  // dots
 	restTime  = 8.0  // seconds a fallen leaf rests before fading
 	fadeTime  = 3.0  // seconds it takes to fade
 	gustMin   = 8.0  // seconds between gusts, at least
 	gustVar   = 10.0 // extra random seconds
 	gustLen   = 2.5  // seconds a gust lasts
-	gustPush  = 9.0  // dots per second of sideways push at a gust's peak
+	gustPush  = 10.0 // dots per second of sideways push at a gust's peak
+	maxDepth  = 5    // branchings from trunk to twig
 )
 
 var (
@@ -48,41 +42,41 @@ var (
 // look is how a season dresses the trees.
 type look struct {
 	crown   []scene.RGB // leaf colours, picked per dot pair
-	fill    float64     // fraction of the crown's dot pairs drawn
+	fill    float64     // fraction of a cluster's dot pairs drawn
 	accent  scene.RGB   // blossoms in spring
 	accentP float64     // fraction of drawn pairs in the accent colour
 	fall    []scene.RGB // colours of what falls
 	rate    float64     // falling things per tree per second
 	ground  scene.RGB
-	bare    bool // winter: no crown, snow along the branches
+	bare    bool // winter: no leaves, snow along the branches
 }
 
 var looks = map[seasons.Season]look{
 	seasons.Spring: {
 		crown:  []scene.RGB{{R: 120, G: 170, B: 90}, {R: 100, G: 155, B: 80}},
-		fill:   0.38,
-		accent: scene.RGB{R: 230, G: 170, B: 190}, accentP: 0.35,
+		fill:   0.42,
+		accent: scene.RGB{R: 230, G: 170, B: 190}, accentP: 0.4,
 		fall:   []scene.RGB{{R: 230, G: 170, B: 190}, {R: 240, G: 200, B: 210}},
-		rate:   0.3,
+		rate:   0.5,
 		ground: scene.RGB{R: 85, G: 125, B: 65},
 	},
 	seasons.Summer: {
 		crown:  []scene.RGB{{R: 60, G: 120, B: 60}, {R: 80, G: 140, B: 70}, {R: 50, G: 105, B: 55}},
-		fill:   0.55,
+		fill:   0.6,
 		fall:   []scene.RGB{{R: 90, G: 145, B: 70}},
-		rate:   0.04,
+		rate:   0.08,
 		ground: scene.RGB{R: 75, G: 120, B: 60},
 	},
 	seasons.Autumn: {
 		crown:  []scene.RGB{{R: 200, G: 110, B: 45}, {R: 210, G: 160, B: 60}, {R: 170, G: 70, B: 40}},
-		fill:   0.32,
+		fill:   0.38,
 		fall:   []scene.RGB{{R: 200, G: 110, B: 45}, {R: 210, G: 160, B: 60}, {R: 170, G: 70, B: 40}},
-		rate:   0.7,
+		rate:   1.2,
 		ground: scene.RGB{R: 125, G: 100, B: 65},
 	},
 	seasons.Winter: {
 		fall:   []scene.RGB{{R: 220, G: 225, B: 235}},
-		rate:   0.15,
+		rate:   0.3,
 		ground: scene.RGB{R: 195, G: 200, B: 210},
 		bare:   true,
 	},
@@ -93,19 +87,22 @@ var (
 	snowCol  = scene.RGB{R: 220, G: 225, B: 235}
 )
 
-// blob is one round part of a crown, relative to the trunk's top.
-type blob struct{ dx, dy, r float64 }
+// limb is one branch segment, in dots relative to the tree's foot, y up.
+type limb struct {
+	x0, y0, x1, y1 float64
+	width          float64 // dots
+}
 
-// branch is a line from the trunk's top, in dots.
-type branch struct{ dx0, dy0, dx1, dy1 float64 }
+// tip is a leaf cluster at the end of a twig.
+type tip struct{ x, y, r float64 }
 
 type tree struct {
-	x     float64 // dot column of the trunk's centre
-	top   float64 // dot row of the trunk's top
-	blobs []blob
-	limbs []branch
-	phase float64
-	seed  int
+	baseX  float64 // dot column of the trunk's foot
+	height float64 // dots from foot to the top of the crown
+	limbs  []limb
+	tips   []tip
+	phase  float64
+	seed   int
 }
 
 // leaf is something falling from a tree, or resting on the ground.
@@ -116,12 +113,15 @@ type leaf struct {
 	rest     float64 // seconds on the ground; -1 while falling
 }
 
-// Scene is the row of trees.
+// Scene is the pair of trees.
 type Scene struct {
 	rng    *rand.Rand
 	w, h   int
 	t      float64
 	season seasons.Season
+	box    scene.Box // the calendar box the trees are fitted around
+	boxSet bool
+	seeds  [2]uint64 // tree shapes, fixed per side across re-layouts
 	trees  []tree
 	leaves []leaf
 	gustIn float64 // seconds until the next gust
@@ -132,6 +132,7 @@ type Scene struct {
 // New returns a w×h scene that draws randomness from rng.
 func New(w, h int, rng *rand.Rand) *Scene {
 	s := &Scene{rng: rng, season: seasons.SeasonOf(time.Now().Month()), gustT: -1}
+	s.seeds = [2]uint64{rng.Uint64(), rng.Uint64()}
 	s.gustIn = gustMin + rng.Float64()*gustVar
 	s.Resize(w, h)
 	return s
@@ -152,45 +153,85 @@ func (s *Scene) Interval() time.Duration { return step }
 // Tick advances one interval.
 func (s *Scene) Tick() { s.Step(step) }
 
-// Resize plants trees across the new width.
+// Resize changes the screen size and refits the trees.
 func (s *Scene) Resize(w, h int) {
 	s.w, s.h = max(w, 0), max(h, 0)
-	s.trees, s.leaves = nil, nil
-	if s.w >= MinWidth {
-		W := float64(s.w * 2)
-		n := max(2, s.w/28)
-		for i := range n {
-			x := W * (float64(i) + 0.5 + 0.3*(s.rng.Float64()-0.5)) / float64(n)
-			s.trees = append(s.trees, s.newTree(x))
-		}
-	}
-	s.canvas.Reset(s.w, Height)
+	s.canvas.Reset(s.w, s.h)
+	s.layout()
 	s.render()
 }
 
-func (s *Scene) newTree(x float64) tree {
-	// The tallest crown top, at size 1.2, is 2 dot rows below the strip's
-	// top: trunk 14*size plus crown 2.3*r with r = 7*size.
-	size := 0.9 + 0.3*s.rng.Float64()
-	t := tree{
-		x:     x,
-		top:   groundRow - 14*size,
-		phase: s.rng.Float64() * 2 * math.Pi,
-		seed:  s.rng.IntN(1 << 20),
+// layout fits a tree into each margin beside the calendar box, or into the
+// outer thirds of an empty screen.
+func (s *Scene) layout() {
+	s.trees, s.leaves = nil, nil
+	if s.w == 0 || s.h < 6 {
+		return
 	}
-	r := 7 * size
-	t.blobs = []blob{
-		{0, -r * 0.9, r},
-		{-r * 0.8, -r * 0.4, r * 0.75},
-		{r * 0.8, -r * 0.5, r * 0.8},
-		{(s.rng.Float64() - 0.5) * r, -r * 1.6, r * 0.7},
+	left, right := [2]int{0, s.w * 35 / 100}, [2]int{s.w * 65 / 100, s.w}
+	if s.boxSet && s.box.Y0 != -1 {
+		left, right = [2]int{0, s.box.X0}, [2]int{s.box.X1, s.w}
 	}
-	t.limbs = []branch{
-		{0, 0, -r * 0.9, -r * 0.8},
-		{0, 0, r * 0.9, -r * 0.9},
-		{0, 0, 0, -r * 1.6},
-		{-r * 0.45, -r * 0.4, -r * 1.3, -r * 1.1},
-		{r * 0.45, -r * 0.45, r * 1.3, -r * 1.3},
+	for i, m := range [][2]int{left, right} {
+		if m[1]-m[0] < minMargin {
+			continue
+		}
+		rng := rand.New(rand.NewPCG(s.seeds[i], 7))
+		s.trees = append(s.trees, grow(rng, float64(m[0]*2), float64(m[1]*2), float64(s.h*4-2)))
+	}
+}
+
+// grow builds a branching tree that fits between dot columns x0 and x1 and
+// is at most maxH dots tall, its foot on the ground.
+func grow(rng *rand.Rand, x0, x1, maxH float64) tree {
+	t := tree{phase: rng.Float64() * 2 * math.Pi, seed: rng.IntN(1 << 20)}
+	var branch func(x, y, angle, length, width float64, depth int)
+	branch = func(x, y, angle, length, width float64, depth int) {
+		ex, ey := x+length*math.Sin(angle), y+length*math.Cos(angle)
+		t.limbs = append(t.limbs, limb{x, y, ex, ey, width})
+		if depth == maxDepth {
+			t.tips = append(t.tips, tip{ex, ey, length * 0.9})
+			return
+		}
+		if depth >= maxDepth-1 {
+			t.tips = append(t.tips, tip{ex, ey, length * 0.7})
+		}
+		n := 2
+		if depth > 0 && rng.Float64() < 0.35 {
+			n = 3
+		}
+		spread := 0.3 + 0.15*rng.Float64()
+		for k := range n {
+			a := angle + spread*(2*float64(k)/float64(n-1)-1)
+			a += (rng.Float64() - 0.5) * 0.25
+			a *= 0.92 // lean back toward upright
+			branch(ex, ey, a, length*(0.72+0.1*rng.Float64()), width*0.65, depth+1)
+		}
+	}
+	// A long trunk makes the tree tall rather than wide.
+	branch(0, 0, (rng.Float64()-0.5)*0.1, 1.7, 0.16, 0)
+
+	// Scale the unit tree into the margin.
+	minX, maxX, maxY := 0.0, 0.0, 0.0
+	for _, tp := range t.tips {
+		minX, maxX = min(minX, tp.x-tp.r), max(maxX, tp.x+tp.r)
+		maxY = max(maxY, tp.y+tp.r)
+	}
+	// Fit the width; stretch upward (to at most maxStretch) to fill the
+	// height a narrow margin leaves unused. Leaf clusters stay round.
+	const maxStretch = 1.8
+	kx := min((x1-x0-4)/(maxX-minX), maxH*0.92/maxY)
+	ky := min(maxH*0.92/maxY, kx*maxStretch)
+	t.baseX = (x0+x1)/2 - (minX+maxX)/2*kx
+	t.height = maxY * ky
+	for i := range t.limbs {
+		l := &t.limbs[i]
+		l.x0, l.y0, l.x1, l.y1 = l.x0*kx, l.y0*ky, l.x1*kx, l.y1*ky
+		l.width = max(1, l.width*kx)
+	}
+	for i := range t.tips {
+		tp := &t.tips[i]
+		tp.x, tp.y, tp.r = tp.x*kx, tp.y*ky, max(2, tp.r*kx)
 	}
 	return t
 }
@@ -207,9 +248,6 @@ func (s *Scene) wind() float64 {
 func (s *Scene) Step(dt time.Duration) {
 	sec := max(dt, 0).Seconds()
 	s.t += sec
-	if s.w < MinWidth {
-		return
-	}
 	if s.gustT >= 0 {
 		if s.gustT += sec; s.gustT >= gustLen {
 			s.gustT = -1
@@ -222,13 +260,13 @@ func (s *Scene) Step(dt time.Duration) {
 	lk := looks[s.season]
 	wind := s.wind()
 	for i := range s.trees {
-		t := &s.trees[i]
 		// Gusts shake more loose.
 		if s.rng.Float64() < lk.rate*sec*(1+3*math.Abs(wind)/gustPush) {
-			s.drop(t, lk)
+			s.drop(&s.trees[i], lk)
 		}
 	}
 
+	ground := float64(s.h*4 - 2)
 	kept := s.leaves[:0]
 	for _, l := range s.leaves {
 		if l.rest >= 0 {
@@ -242,8 +280,8 @@ func (s *Scene) Step(dt time.Duration) {
 		l.x0 += wind * sec
 		l.y += fallSpeed * sec
 		l.x = l.x0 + swayAmp*math.Sin(l.phase)
-		if l.y >= groundRow-1 {
-			l.y, l.rest = groundRow-1, 0
+		if l.y >= ground {
+			l.y, l.rest = ground, 0
 		}
 		if l.x < -2 || l.x > float64(s.w*2)+2 {
 			continue
@@ -254,49 +292,53 @@ func (s *Scene) Step(dt time.Duration) {
 	s.render()
 }
 
-// drop lets one leaf (or petal, or clump of snow) go from somewhere in the
-// tree's crown.
+// drop lets one leaf (or petal, or clump of snow) go from a random twig.
 func (s *Scene) drop(t *tree, lk look) {
-	b := t.blobs[s.rng.IntN(len(t.blobs))]
+	tp := t.tips[s.rng.IntN(len(t.tips))]
 	a := s.rng.Float64() * 2 * math.Pi
-	rr := b.r * math.Sqrt(s.rng.Float64())
-	x := t.x + b.dx + rr*math.Cos(a)
+	rr := tp.r * math.Sqrt(s.rng.Float64())
+	x := t.baseX + tp.x + rr*math.Cos(a)
 	s.leaves = append(s.leaves, leaf{
 		x: x, x0: x,
-		y:     t.top + b.dy + rr*math.Sin(a),
+		y:     float64(s.h*4-2) - (tp.y + rr*math.Sin(a)),
 		phase: s.rng.Float64() * 2 * math.Pi,
 		col:   lk.fall[s.rng.IntN(len(lk.fall))],
 		rest:  -1,
 	})
 }
 
-// Glyph returns the rune at screen (x, y), or 0 for empty. The scene hides
-// whole when its strip would touch the calendar box b.
+// Glyph returns the rune at screen (x, y), or 0 for empty. When it sees a
+// new calendar box it refits the trees around it.
 func (s *Scene) Glyph(x, y int, b scene.Box) rune {
-	if s.w < MinWidth || b.Y1 >= s.h-Height {
-		return 0
+	// An empty box also comes from cells drawn behind the calendar, so it
+	// only counts before any real box has been seen.
+	if b != s.box && (b.Y0 != -1 || !s.boxSet) {
+		s.box, s.boxSet = b, true
+		s.layout()
+		s.render()
 	}
-	return s.canvas.Glyph(x, y-(s.h-Height))
+	return s.canvas.Glyph(x, y)
 }
 
 // RGB returns the colour of the glyph at (x, y).
-func (s *Scene) RGB(x, y int, _ scene.Box) scene.RGB {
-	return s.canvas.RGB(x, y-(s.h-Height))
-}
+func (s *Scene) RGB(x, y int, _ scene.Box) scene.RGB { return s.canvas.RGB(x, y) }
 
 func (s *Scene) dot(x, y float64, col scene.RGB) {
-	if y < 0 || y >= Height*4 || x < 0 {
+	if y < 0 || x < 0 {
 		return
 	}
 	s.canvas.Dot(x/2, y/4, col)
 }
 
-// line plots a line of dots from (x0, y0) to (x1, y1).
-func (s *Scene) line(x0, y0, x1, y1 float64, col scene.RGB) {
+// line plots a line of dots from (x0, y0) to (x1, y1), width dots wide.
+func (s *Scene) line(x0, y0, x1, y1, width float64, col scene.RGB) {
 	n := int(math.Max(math.Abs(x1-x0), math.Abs(y1-y0))) + 1
 	for i := 0; i <= n; i++ {
 		u := float64(i) / float64(n)
-		s.dot(x0+(x1-x0)*u, y0+(y1-y0)*u, col)
+		x, y := x0+(x1-x0)*u, y0+(y1-y0)*u
+		for d := 0.0; d < width; d++ {
+			s.dot(x+d-(width-1)/2, y, col)
+		}
 	}
 }
 
@@ -316,50 +358,53 @@ func hash(a, b, c int) float64 {
 
 func (s *Scene) render() {
 	s.canvas.Clear()
-	if s.w < MinWidth {
+	if s.w == 0 || s.h == 0 {
 		return
 	}
 	lk := looks[s.season]
 	wind := s.wind()
+	ground := float64(s.h*4 - 2)
 
 	for x := range s.w * 2 {
-		s.dot(float64(x), groundRow+1, scale(lk.ground, 0.8))
+		s.dot(float64(x), ground+1, scale(lk.ground, 0.8))
 	}
 
 	for _, t := range s.trees {
-		// The crown sways a little, more in a gust.
-		sway := (0.6 + 1.2*math.Abs(wind)/gustPush) * math.Sin(s.t*1.1+t.phase)
-		sway += 1.5 * wind / gustPush
-		bend := func(dy float64) float64 { return sway * math.Min(1, -dy/14) }
+		// Sway grows with height, more in a gust.
+		sway := (0.8 + 1.5*math.Abs(wind)/gustPush) * math.Sin(s.t*1.1+t.phase)
+		sway += 2 * wind / gustPush
+		bend := func(y float64) float64 {
+			u := y / t.height
+			return sway * u * u
+		}
+		at := func(x, y float64) (float64, float64) {
+			return t.baseX + x + bend(y), ground - y
+		}
 
-		s.line(t.x, groundRow, t.x, t.top, trunkCol)
-		s.line(t.x+1, groundRow, t.x+1, t.top+2, trunkCol)
 		for _, l := range t.limbs {
-			if !lk.bare {
-				// Keep the tips inside the crown.
-				l.dx1, l.dy1 = l.dx0+(l.dx1-l.dx0)*0.6, l.dy0+(l.dy1-l.dy0)*0.6
-			}
-			s.line(t.x+l.dx0+bend(l.dy0), t.top+l.dy0, t.x+l.dx1+bend(l.dy1), t.top+l.dy1, trunkCol)
-			if lk.bare {
-				// Snow lies along the upper side of each branch.
-				s.line(t.x+l.dx0+bend(l.dy0)+0.5, t.top+l.dy0-1, t.x+l.dx1+bend(l.dy1)+0.5, t.top+l.dy1-1, snowCol)
+			ax, ay := at(l.x0, l.y0)
+			bx, by := at(l.x1, l.y1)
+			s.line(ax, ay, bx, by, l.width, trunkCol)
+			if lk.bare && l.width < 3 {
+				// Snow lies along the upper side of the thinner branches.
+				s.line(ax, ay-1, bx, by-1, 1, snowCol)
 			}
 		}
 		if lk.bare {
 			continue
 		}
-		for _, b := range t.blobs {
-			cx, cy := t.x+b.dx+bend(b.dy), t.top+b.dy
-			for y := int(cy - b.r); y <= int(cy+b.r); y++ {
-				for x := int(cx - b.r); x <= int(cx+b.r); x++ {
+		for _, tp := range t.tips {
+			cx, cy := at(tp.x, tp.y)
+			for y := int(cy - tp.r); y <= int(cy+tp.r); y++ {
+				for x := int(cx - tp.r); x <= int(cx+tp.r); x++ {
 					dx, dy := float64(x)-cx, float64(y)-cy
-					if dx*dx+dy*dy > b.r*b.r {
+					if dx*dx+dy*dy > tp.r*tp.r {
 						continue
 					}
 					// Dots come in vertical pairs within a cell, fixed to
 					// the tree, so no cell holds a lone dot.
-					hx := x - int(math.Floor(cx-t.x))
-					h := hash(t.seed, hx, (y-int(t.top))/2+100)
+					hx := x - int(math.Floor(cx-tp.x-t.baseX))
+					h := hash(t.seed, hx, y/2)
 					if h >= lk.fill {
 						continue
 					}
@@ -379,13 +424,9 @@ func (s *Scene) render() {
 			col = scale(col, 1-(l.rest-restTime)/fadeTime)
 		}
 		s.dot(l.x, l.y, col)
-		if l.rest < 0 {
+		if l.rest < 0 && math.Sin(l.phase*2) <= 0 {
 			// A falling leaf turns: two dots, side by side or stacked.
-			if math.Sin(l.phase*2) > 0 {
-				s.dot(l.x+1, l.y, col)
-			} else {
-				s.dot(l.x, l.y+1, col)
-			}
+			s.dot(l.x, l.y+1, col)
 		} else {
 			s.dot(l.x+1, l.y, col)
 		}
