@@ -349,16 +349,16 @@ func (s *Scene) render() {
 	for _, rk := range s.rocks {
 		for i, top := range rk.tops {
 			x := rk.cx - rk.r + float64(i)
-			s.dot(x, top, edgeCol)
-			for y := int(top) + 1; y < H; y++ {
-				// Sparse speckle; under the surface it fades into the sea.
-				col, p := rockCol, 0.3
+			// Facets: a shade per cell column, so neighbouring dots in
+			// one cell always share a colour.
+			facet := 0.85 + 0.3*hash(int(x)/2, 7)
+			for y := int(top); y < H; y++ {
+				depth := float64(y) - top
+				col := mix(edgeCol, scale(rockCol, facet), min(1, depth/3))
 				if float64(y) > seaRow {
-					col, p = mix(rockCol, deepCol, 0.6), 0.14
+					col = mix(col, deepCol, 0.7)
 				}
-				if hash(int(x), y) < p {
-					s.dot(x, float64(y), col)
-				}
+				s.dot(x, float64(y), col)
 			}
 		}
 	}
