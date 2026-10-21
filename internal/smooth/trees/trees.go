@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/v4run/tcal/internal/dots"
+	"github.com/v4run/tcal/internal/palette"
 	"github.com/v4run/tcal/internal/scene"
 	"github.com/v4run/tcal/internal/smooth/seasons"
 )
@@ -37,6 +38,7 @@ var (
 	_ scene.Stepper     = (*Scene)(nil)
 	_ scene.TrueColored = (*Scene)(nil)
 	_ scene.Clocked     = (*Scene)(nil)
+	_ scene.Colored     = (*Scene)(nil)
 )
 
 // look is how a season dresses the trees.
@@ -450,6 +452,10 @@ func (s *Scene) Glyph(x, y int, b scene.Box) rune {
 
 // RGB returns the colour of the glyph at (x, y).
 func (s *Scene) RGB(x, y int, _ scene.Box) scene.RGB { return s.canvas.RGB(x, y) }
+
+// Color returns the palette colour nearest the glyph's, for the classic
+// style.
+func (s *Scene) Color(x, y int, b scene.Box) scene.Color { return palette.Nearest(s.RGB(x, y, b)) }
 
 // freeBelow is the number of dot rows between the calendar box and the
 // ground; the whole screen when no box is known.

@@ -77,6 +77,7 @@ tcal --print | lpr
 | `ants`      | an ant trail marching around the calendar |
 | `sky`       | the sun crossing the sky by day; stars and the real moon phase by night |
 | `seasons`   | snow, petals, fireflies, or leaves — by the month on screen |
+| `trees`     | a tree in each margin that follows the season of the month on screen, falling leaves, a bench and lamp post below the calendar, and a bird that flits between them |
 | `hourglass` | sand piling up along the bottom over the hour |
 | `rain`      | a light drizzle with splashes on the ground |
 | `starfield` | slow parallax stars and the odd shooting star |
@@ -86,7 +87,7 @@ tcal --print | lpr
 | `langton`   | Langton's ant |
 | `automaton` | fractal cellular automata scrolling upward |
 
-Bottom-strip scenes (`container`, `harbor`, `train`) hide themselves when the terminal is too short to fit them below the calendar.
+Bottom-strip scenes (`container`, `harbor`, `train`) hide themselves when the terminal is too short to fit them below the calendar. `trees` fits a tree into each margin at least 12 columns wide; the bench and lamp appear when there is room below the calendar.
 
 Backgrounds are drawn dim and tinted from your terminal's 16-color palette, so they follow your theme; `--bg-color=false` keeps them monochrome. To preview a time-aware background at another time, shift its clock with `--bg-time` (it keeps ticking from there; the calendar keeps the real time):
 

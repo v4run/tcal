@@ -84,4 +84,5 @@ var smoothBackgrounds = map[string]func(w, h int, rng *rand.Rand, o BackgroundOp
 	"aquarium": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene {
 		return aquarium.New(w, h, rng)
 	},
+	"trees": backgrounds["trees"],
 }
