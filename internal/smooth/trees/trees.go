@@ -432,11 +432,21 @@ func (s *Scene) drawPark(lk look, ground float64) {
 	// The lantern: an iron cap over a warm glass.
 	s.line(lx-2, top, lx+2, top, 1, ironCol)
 	for y := top + 1; y <= top+3; y++ {
-		s.line(lx-1, y, lx+1, y, 1, glowCol)
+		s.line(lx-1, y, lx+1, y, 1, scale(glowCol, s.flicker()))
 	}
 	if lk.bare {
 		s.line(lx-2, top-1, lx+2, top-1, 1, snowCol)
 	}
+}
+
+// flicker is the lamp's brightness, 0 to 1: a slow drift between about
+// 0.88 and 1, and now and then (about one 1/8 s slot in 80) a brief dip.
+func (s *Scene) flicker() float64 {
+	k := 0.94 + 0.04*math.Sin(s.t*2.3) + 0.02*math.Sin(s.t*7.1)
+	if hash(int(s.t*8), 3, 9) < 1.0/80 {
+		k *= 0.6
+	}
+	return k
 }
 
 // drawBird draws the bird partway along its arc from one crown to the
