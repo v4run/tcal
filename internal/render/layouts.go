@@ -14,7 +14,11 @@ const monthGutter = "  " // two-space gutter between months in horizontal/grid
 func RenderLayout(layout Layout, months []calendar.Month, today time.Time, opts Options) string {
 	blocks := make([]string, len(months))
 	for i, m := range months {
-		blocks[i] = RenderMonth(m, today, opts)
+		if opts.Look == LookThin {
+			blocks[i] = RenderThinMonth(m, today, opts)
+		} else {
+			blocks[i] = RenderMonth(m, today, opts)
+		}
 	}
 	switch layout {
 	case LayoutHorizontal:

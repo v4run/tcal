@@ -25,6 +25,8 @@ type Model struct {
 	// depth and the terminal background they are blended toward.
 	bgMode palette.Mode
 	bgRGB  scene.RGB
+	// bgBehind is the background's opacity behind the calendar, 0 to 100.
+	bgBehind int
 	// bgLast is the time of the previous background tick; zero before the
 	// first.
 	bgLast time.Time
@@ -96,6 +98,17 @@ func (m Model) WithBackgroundPalette(mode palette.Mode, bg scene.RGB) Model {
 	m.bgMode, m.bgRGB = mode, bg
 	return m
 }
+
+// WithBackgroundBehind sets the background's opacity behind the calendar,
+// clamped to 0 (off) to 100 (as bright as in the margins). The [ and ]
+// keys change it in steps of behindStep.
+func (m Model) WithBackgroundBehind(pct int) Model {
+	m.bgBehind = min(max(pct, 0), 100)
+	return m
+}
+
+// behindStep is how much [ and ] change the opacity behind the calendar.
+const behindStep = 10
 
 // WithBackgroundMono draws the background without scene colors: dim, in
 // the terminal's foreground color.
@@ -205,6 +218,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.state.Layout = render.LayoutHorizontal
 	case "2":
 		m.state.Layout = render.LayoutGrid
+	case "[":
+		m = m.WithBackgroundBehind(m.bgBehind - behindStep)
+	case "]":
+		m = m.WithBackgroundBehind(m.bgBehind + behindStep)
 	}
 	return m, nil
 }
@@ -214,7 +231,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 func (m Model) View() string {
 	out := m.calendarFrame()
 	if m.bg != nil {
-		out = overlay(out, m.bg, m.state.Width, m.state.Height, bgPaint{style: m.bgStyle(), mode: m.bgMode, bg: m.bgRGB})
+		out = overlay(out, m.bg, m.state.Width, m.state.Height, bgPaint{style: m.bgStyle(), mode: m.bgMode, bg: m.bgRGB, behind: m.bgBehind})
 	}
 	return out
 }

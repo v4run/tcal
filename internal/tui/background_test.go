@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/v4run/tcal/internal/eventart"
@@ -204,6 +205,34 @@ func TestAllBackgrounds_NeverTouchCalendar(t *testing.T) {
 	}
 }
 
+// Every background, in both styles, leaves the thin look's padded box
+// intact, for one month and for three side by side.
+func TestAllBackgrounds_NeverTouchThinCalendar(t *testing.T) {
+	const w, h = 160, 50
+	for _, months := range []int{1, 3} {
+		for _, style := range Styles() {
+			for _, name := range Backgrounds() {
+				m := runnerModel(w, h)
+				m.opts.Look = render.LookThin
+				m.state.Months = months
+				frame := render.Frame(m.state, m.opts)
+				if !strings.Contains(frame, "┏") {
+					t.Fatal("thin look did not render")
+				}
+				plain := runeGrid(frame)
+				m = m.WithBackground(name, BackgroundOptions{Style: style})
+				for i := 0; i < 120; i++ {
+					next, _ := m.Update(bgTickMsg(time.Time{}))
+					m = next.(Model)
+					if i%20 == 0 {
+						assertCalendarIntact(t, fmt.Sprintf("%s/%s months %d tick %d", style, name, months, i), plain, runeGrid(m.View()))
+					}
+				}
+			}
+		}
+	}
+}
+
 // Every event with art, shown in seasons, leaves the calendar's padded box
 // intact.
 func TestAllEvents_NeverTouchCalendar(t *testing.T) {
@@ -381,5 +410,67 @@ func TestCells_ANSIFallbackKeepsHue(t *testing.T) {
 	got := cells(sc, 0, 0, 1, scene.Box{Y0: -1, Y1: -1}, bgPaint{style: styleColor, mode: palette.ANSI, bg: palette.Light})
 	if !strings.Contains(got, "31m") {
 		t.Errorf("got %q; want red (31m)", got)
+	}
+}
+
+func TestBehind_FillsFaintRunsButNotSolidOnes(t *testing.T) {
+	sc := &fakeScene{}
+	p := bgPaint{style: styleFaint, behind: 50}
+	faint := "\x1b[2m 1 \x1b[0m"
+	got := behind(sc, 0, 0, faint, p)
+	if s := ansi.Strip(got); s != "⣿1⣿" {
+		t.Errorf("faint run: got %q, want ⣿1⣿", s)
+	}
+	if !strings.HasSuffix(got, "⣿"+faintOff+sgrReset+"\x1b[2m"+"\x1b[0m") {
+		t.Errorf("faint run: style not restored after the glyph: %q", got)
+	}
+
+	solid := "\x1b[1;30;43m 2 \x1b[0m"
+	if s := ansi.Strip(behind(sc, 0, 0, solid, p)); s != " 2 " {
+		t.Errorf("solid run: got %q, want it untouched", s)
+	}
+	if s := ansi.Strip(behind(sc, 0, 0, "\x1b[38;5;43m 3 \x1b[0m", p)); s != "⣿3⣿" {
+		t.Errorf("256-colour foreground is not a fill: got %q", s)
+	}
+}
+
+func TestBehind_OpacityScalesTrueColour(t *testing.T) {
+	sc := hueScene{scene.RGB{R: 200, G: 200, B: 200}}
+	p := bgPaint{style: styleColor, mode: palette.TrueColor, bg: palette.Dark}
+	for _, tc := range []struct {
+		pct  int
+		want string
+	}{{100, "38;2;150;150;150m"}, {50, "38;2;75;75;75m"}} {
+		p.behind = tc.pct
+		if got := behind(sc, 0, 0, " ", p); !strings.Contains(got, tc.want) {
+			t.Errorf("%d%%: got %q, want %s", tc.pct, got, tc.want)
+		}
+	}
+}
+
+func TestOverlay_BehindZeroLeavesCalendarAlone(t *testing.T) {
+	m := runnerModel(100, 40).WithBackground("rain", BackgroundOptions{Style: StyleSmooth})
+	plain := runeGrid(render.Frame(m.state, m.opts))
+	for i := 0; i < 60; i++ {
+		next, _ := m.Update(bgTickMsg(time.Time{}))
+		m = next.(Model)
+	}
+	assertCalendarIntact(t, "behind 0", plain, runeGrid(m.View()))
+}
+
+func TestKeys_BracketsChangeBehind(t *testing.T) {
+	m := runnerModel(100, 40).WithBackgroundBehind(95)
+	for _, tc := range []struct {
+		key  string
+		want int
+	}{{"]", 100}, {"[", 90}, {"[", 80}} {
+		next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tc.key)})
+		m = next.(Model)
+		if m.bgBehind != tc.want {
+			t.Errorf("after %s: %d, want %d", tc.key, m.bgBehind, tc.want)
+		}
+	}
+	if m.WithBackgroundBehind(-5).bgBehind != 0 {
+		t.Error("negative opacity should clamp to 0")
 	}
 }
