@@ -101,8 +101,8 @@ func TestOverlay_NoColorEmitsNoEscapes(t *testing.T) {
 }
 
 func TestOverlay_LeavesMismatchedFrameAlone(t *testing.T) {
-	frame := testFrame(30, 30) // too narrow: hint line, no centering
-	if got := overlay(frame, fullLife(30, 30), 30, 30, bgPaint{style: styleColor}); got != frame {
+	frame := testFrame(15, 30) // too narrow even for one month: hint line, no centering
+	if got := overlay(frame, fullLife(15, 30), 15, 30, bgPaint{style: styleColor}); got != frame {
 		t.Error("expected unpadded frame to be returned unchanged")
 	}
 }
@@ -206,9 +206,17 @@ func TestAllBackgrounds_NeverTouchCalendar(t *testing.T) {
 }
 
 // Every background, in both styles, leaves the thin look's padded box
-// intact, for one month and for three side by side.
+// intact, for one month and for three.
 func TestAllBackgrounds_NeverTouchThinCalendar(t *testing.T) {
-	const w, h = 160, 50
+	// At 120 columns three months show as thin October between small
+	// neighbours.
+	for _, sz := range [][2]int{{160, 50}, {120, 40}} {
+		thinCalendarIntact(t, sz[0], sz[1])
+	}
+}
+
+func thinCalendarIntact(t *testing.T, w, h int) {
+	t.Helper()
 	for _, months := range []int{1, 3} {
 		for _, style := range Styles() {
 			for _, name := range Backgrounds() {
@@ -225,7 +233,7 @@ func TestAllBackgrounds_NeverTouchThinCalendar(t *testing.T) {
 					next, _ := m.Update(bgTickMsg(time.Time{}))
 					m = next.(Model)
 					if i%20 == 0 {
-						assertCalendarIntact(t, fmt.Sprintf("%s/%s months %d tick %d", style, name, months, i), plain, runeGrid(m.View()))
+						assertCalendarIntact(t, fmt.Sprintf("%dx%d %s/%s months %d tick %d", w, h, style, name, months, i), plain, runeGrid(m.View()))
 					}
 				}
 			}

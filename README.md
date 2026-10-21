@@ -54,6 +54,7 @@ tcal --print | lpr
 | `--with-clock`   | off            | include block clock in print mode          |
 | `--clock-style`  | `block`        | `block \| inline \| boxed`                 |
 | `--look`         | `classic`      | `classic \| thin`; see [Thin look](#thin-look) |
+| `--neighbors`    | `auto`         | thin look, the months either side: `auto` (big if they fit, else small) \| `small` (always small) \| `big` (big if they fit, else hidden) |
 | `--bg`           | `none`         | `none`, `random`, or a name from [Backgrounds](#backgrounds) (live mode only) |
 | `--bg-behind`    | `0`            | background opacity behind the calendar and clock, `0`–`100`; `0` keeps it clear. Every step shows in true colour; other palettes are only off or faint |
 | `--bg-color`     | `true`         | tint the background; `false` draws it dim in the foreground color |
@@ -114,7 +115,16 @@ The year view is an overview, so it always uses the classic look.
 tcal --look thin --months 1
 ```
 
-A thin month is 49 columns wide and 22 rows tall, so three side by side need about 150 columns. When the thin calendar doesn't fit the screen (or `--width` in print mode), tcal falls back to the classic look; the grid layout always uses it. `--clock-style` is ignored in the thin look. Set `look = "thin"` in the [config file](#config-file) to make it your default.
+A thin month is 49 columns wide and 22 rows tall. When the calendar doesn't fit the screen (or `--width` in print mode), tcal steps down, dropping the least important thing first:
+
+| Step | Shown | Needs about |
+|------|-------|-------------|
+| 1 | all the months in thin digits | 151 columns for three |
+| 2 | this month in thin digits, the months either side small and dim | 95 columns |
+| 3 | this month alone in thin digits | 50 columns |
+| 4 | the classic look, then fewer months (5 → 3 → 1) | 64, then 20 columns |
+
+`--neighbors small` always uses step 2 instead of step 1; `--neighbors big` never uses step 2. Before each step down, a tall clock shrinks to one line, so one thin month fits an 80×24 terminal. The months you can't see are always a keypress away with `h`/`l`. The grid layout always uses the classic look. `--clock-style` is ignored in the thin look. Set `look = "thin"` in the [config file](#config-file) to make it your default.
 
 ## Smooth style
 
@@ -188,6 +198,7 @@ week-start  = "mon"         # sun | mon
 highlight   = "combined"    # combined | reverse | bracket | color | none
 clock-style = "block"       # block | inline | boxed
 look        = "classic"     # classic | thin
+neighbors   = "auto"        # auto | small | big — thin look, the months either side
 with-clock  = true
 no-color    = false
 bg          = "random"      # none | random | <background name>
@@ -224,13 +235,14 @@ After any change to layout/centering code, run through:
 - [ ] `tcal --layout grid` — the year fits: 4×3 at 120×36, 6×2 from about 132 columns; resize to watch it rearrange.
 - [ ] `tcal --print --layout grid --date 2026-01 > /tmp/y.txt && cat /tmp/y.txt` — clean static output.
 - [ ] `NO_COLOR=1 tcal` — no color escapes in output; today still distinguishable via reverse video.
-- [ ] Run in a 40×10 terminal — "too narrow" hint appears at the top.
+- [ ] Narrow the terminal below 64 columns — three months become one; below 20 the "too narrow" hint appears.
 - [ ] `tcal --bg life` — dim cells animate in the margins only, never inside the calendar/clock box; resize reseeds.
 - [ ] `NO_COLOR=1 tcal --bg life` — cells render as plain `·` with no escapes.
 - [ ] `tcal --bg aquarium` vs `tcal --bg aquarium --bg-color=false` — tinted vs plain dim; `NO_COLOR=1` shows no escapes.
 - [ ] `tcal --bg sky --bg-time 22:30` — night sky and moon, while the calendar header shows the real time.
 - [ ] `tcal --bg-style smooth --bg rain` — braille drizzle, smooth motion.
 - [ ] `tcal --look thin --months 1` — thin clock with a seconds bar over this month in big day numbers; shrink the terminal and it falls back to classic.
+- [ ] `tcal --look thin` at 120 columns — thin October between small, dim September and November; widen past 151 for three thin months, narrow below 95 for October alone.
 - [ ] `NO_COLOR=1 tcal --look thin --months 1` — today in corner brackets, no escapes.
 - [ ] `tcal --look thin --months 1 --bg-style smooth --bg lava --bg-behind 30` — lava faint behind the dates, today's block clean; `[`/`]` fade it out and in.
 - [ ] `COLORTERM= tcal --bg-style smooth --bg sky` — ANSI fallback: 16-color tinting only, still recognisable.

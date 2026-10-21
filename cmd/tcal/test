@@ -1,0 +1,54 @@
+# tcal config. Every key is optional; command-line flags win over it.
+# The values below are the built-in defaults.
+
+# ambient background in live mode: none|random|ants|aquarium|automaton|container|flow|harbor|hourglass|langton|lava|life|rain|seasons|sky|starfield|train
+bg = "none"
+
+# background opacity behind the calendar and clock, 0-100 (0 = off); [ and ] change it live
+bg-behind = 0
+
+# tint the background; false draws it dim in the foreground color
+bg-color = true
+
+# background colors: auto|truecolor|ansi
+bg-palette = "auto"
+
+# background style: classic|smooth
+bg-style = "classic"
+
+# block|inline|boxed
+clock-style = "block"
+
+# show holiday scenes in the seasons background
+events = true
+
+# combined|reverse|bracket|color|none
+highlight = "combined"
+
+# horizontal|grid
+layout = "horizontal"
+
+# clock and calendar look: classic|thin (thin falls back to classic when it does not fit)
+look = "classic"
+
+# number of months (0 = layout default)
+months = 0
+
+# disable ANSI color (also honors NO_COLOR env)
+no-color = false
+
+# sun|mon
+week-start = "sun"
+
+# terminal width (print mode only)
+width = 0
+
+# include block clock in print mode
+with-clock = false
+
+# Your birthday shows a cake in the seasons background: MM-DD (YYYY-MM-DD also accepted).
+# birthday = "05-17"
+
+# Backgrounds --bg random may pick. Omit to allow all of them.
+# [random]
+# backgrounds = ["ants", "aquarium", "automaton", "container", "flow", "harbor", "hourglass", "langton", "lava", "life", "rain", "seasons", "sky", "starfield", "train"]
