@@ -35,6 +35,7 @@ tcal --print | lpr
 | k / ↑           | Next year                       |
 | 1 / 2           | Layout: horizontal / grid                    |
 | t               | Jump to today                   |
+| [ / ]           | Background behind the calendar: less / more (see `--bg-behind`) |
 | q / Ctrl-C      | Quit                            |
 
 ## Flags
@@ -54,6 +55,7 @@ tcal --print | lpr
 | `--clock-style`  | `block`        | `block \| inline \| boxed`                 |
 | `--look`         | `classic`      | `classic \| thin`; see [Thin look](#thin-look) |
 | `--bg`           | `none`         | `none`, `random`, or a name from [Backgrounds](#backgrounds) (live mode only) |
+| `--bg-behind`    | `0`            | background opacity behind the calendar and clock, `0`–`100`; `0` keeps it clear. Every step shows in true colour; other palettes are only off or faint |
 | `--bg-color`     | `true`         | tint the background; `false` draws it dim in the foreground color |
 | `--bg-time`      | now            | time seen by `sky`/`hourglass` and by [events](#events): `HH:MM`, `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM` |
 | `--bg-style`     | `classic`      | `classic \| smooth`; see [Smooth style](#smooth-style) |
@@ -182,6 +184,7 @@ with-clock  = true
 no-color    = false
 bg          = "random"      # none | random | <background name>
 bg-color    = true
+bg-behind   = 0             # 0-100, background opacity behind the calendar
 bg-style    = "classic"    # classic | smooth
 bg-palette  = "auto"       # auto | truecolor | ansi
 events      = true
@@ -221,6 +224,7 @@ After any change to layout/centering code, run through:
 - [ ] `tcal --bg-style smooth --bg rain` — braille drizzle, smooth motion.
 - [ ] `tcal --look thin --months 1` — thin clock with a seconds bar over this month in big day numbers; shrink the terminal and it falls back to classic.
 - [ ] `NO_COLOR=1 tcal --look thin --months 1` — today in corner brackets, no escapes.
+- [ ] `tcal --look thin --months 1 --bg-style smooth --bg lava --bg-behind 30` — lava faint behind the dates, today's block clean; `[`/`]` fade it out and in.
 - [ ] `COLORTERM= tcal --bg-style smooth --bg sky` — ANSI fallback: 16-color tinting only, still recognisable.
 - [ ] `COLORTERM= tcal --bg-style smooth --bg sky --bg-palette truecolor` — full true colour even with `COLORTERM` unset.
 - [ ] `tcal --bg-style smooth --bg seasons --bg-time 2026-12-25` — a smooth Christmas scene; `--events=false` removes it.

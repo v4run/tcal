@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"math/rand/v2"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -55,6 +54,9 @@ type bgPaint struct {
 	style bgStyle
 	mode  palette.Mode
 	bg    scene.RGB
+	// behind is the background's opacity behind the calendar, 0 to 100;
+	// 0 leaves the calendar's box alone.
+	behind int
 }
 
 // sgrColor returns the escape that selects c as the foreground color.
@@ -250,7 +252,7 @@ func overlay(frame string, sc scene.Scene, w, h int, p bgPaint) string {
 			continue
 		}
 		mid := ln[b.X0 : len(ln)-(w-b.X1)]
-		if bgBehind {
+		if p.behind > 0 {
 			mid = behind(sc, y, b.X0, mid, p)
 		}
 		lines[y] = cells(sc, y, 0, b.X0, b, p) + mid + cells(sc, y, b.X1, w, b, p)
@@ -322,14 +324,6 @@ func cells(sc scene.Scene, y, from, to int, b scene.Box, p bgPaint) string {
 	return sb.String()
 }
 
-// SPIKE: TCAL_BG_BEHIND=1 draws the background behind the calendar too,
-// in the blank cells between its characters, dimmer than in the margins.
-var bgBehind = os.Getenv("TCAL_BG_BEHIND") != ""
-
-// behindKeep is how much of a true-colour scene's colour survives behind
-// the calendar; the margins keep keepFactor.
-const behindKeep = 0.3
-
 // behind replaces the blank cells of seg, which starts at column x0 of row
 // y, with the scene's glyphs. Spaces inside a run with a background or
 // reverse (today's block) are kept; inside other styled runs (faint past
@@ -382,7 +376,9 @@ func behind(sc scene.Scene, y, x0 int, seg string, p bgPaint) string {
 		case p.style == stylePlain:
 			sb.WriteRune(g)
 		case trueColored != nil && p.mode == palette.TrueColor:
-			c := palette.Blend(trueColored.RGB(x-1, y, empty), p.bg, behindKeep)
+			// At 100 the background is as bright as in the margins.
+			keep := keepFactor * float64(min(p.behind, 100)) / 100
+			c := palette.Blend(trueColored.RGB(x-1, y, empty), p.bg, keep)
 			fmt.Fprintf(&sb, "\x1b[38;2;%d;%d;%dm%c%s", c.R, c.G, c.B, g, fgReset)
 		case trueColored != nil:
 			sb.WriteString(faintOn + sgrColor(palette.Nearest(trueColored.RGB(x-1, y, empty))) + string(g) + fgReset + faintOff)

@@ -59,7 +59,9 @@ type runConfig struct {
 	bg     string
 	bgOpts tui.BackgroundOptions
 	bgMono bool
-	bgTime *time.Time // nil when --bg-time is unset
+	// bgBehind is the background's opacity behind the calendar, 0 to 100.
+	bgBehind int
+	bgTime   *time.Time // nil when --bg-time is unset
 	// bgStyle is tui.StyleClassic or tui.StyleSmooth (also in bgOpts.Style).
 	bgStyle string
 	// bgPalette is the colour depth for true-colour backgrounds.
@@ -103,6 +105,7 @@ func run(args []string, stdout, stderr *os.File) error {
 	if rc.bgMono {
 		model = model.WithBackgroundMono()
 	}
+	model = model.WithBackgroundBehind(rc.bgBehind)
 	if rc.bg != "" {
 		// Ask the terminal for its background once, before Bubble Tea owns it.
 		// Only smooth, coloured output needs it; the query would change
@@ -144,6 +147,7 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	bgS := fs.String("bg", "none", "ambient background in live mode: none|random|"+strings.Join(tui.Backgrounds(), "|"))
 	bgStyleS := fs.String("bg-style", tui.StyleClassic, "background style: "+strings.Join(tui.Styles(), "|"))
 	bgPaletteS := fs.String("bg-palette", "auto", "background colors: auto|truecolor|ansi")
+	bgBehind := fs.Int("bg-behind", 0, "background opacity behind the calendar and clock, 0-100 (0 = off); [ and ] change it live")
 	bgColor := fs.Bool("bg-color", true, "tint the background; false draws it dim in the foreground color")
 	bgTimeS := fs.String("bg-time", "", "time seen by time-aware backgrounds: HH:MM, YYYY-MM-DD or YYYY-MM-DDTHH:MM")
 	showEvents := fs.Bool("events", true, "show holiday scenes in the seasons background")
@@ -200,6 +204,7 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 		"bg-color":    func(s string) error { _, err := strconv.ParseBool(s); return err },
 		"events":      func(s string) error { _, err := strconv.ParseBool(s); return err },
 		"months":      func(s string) error { _, err := strconv.Atoi(s); return err },
+		"bg-behind":   func(s string) error { _, err := parseBgBehind(s); return err },
 		"width":       func(s string) error { _, err := strconv.Atoi(s); return err },
 	}
 	keys := make([]string, 0, len(cfg.Flags))
@@ -228,6 +233,9 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	}
 	bgPalette, err := parseBgPalette(*bgPaletteS)
 	if err != nil {
+		return runConfig{}, err
+	}
+	if _, err := parseBgBehind(strconv.Itoa(*bgBehind)); err != nil {
 		return runConfig{}, err
 	}
 	bgOpts := tui.BackgroundOptions{Events: *showEvents, Style: bgStyle}
@@ -273,14 +281,15 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	}
 
 	return runConfig{
-		state:  state,
-		opts:   opts,
-		print:  *print,
-		width:  *width,
-		bg:     bg,
-		bgOpts: bgOpts,
-		bgMono: !*bgColor,
-		bgTime: bgTime,
+		state:    state,
+		opts:     opts,
+		print:    *print,
+		width:    *width,
+		bg:       bg,
+		bgOpts:   bgOpts,
+		bgMono:   !*bgColor,
+		bgBehind: *bgBehind,
+		bgTime:   bgTime,
 
 		bgStyle:   bgStyle,
 		bgPalette: bgPalette,
@@ -393,6 +402,14 @@ func parseClockStyle(s string) (render.ClockStyle, error) {
 		return render.ClockBoxed, nil
 	}
 	return 0, fmt.Errorf("unknown --clock-style %q (expected block|inline|boxed)", s)
+}
+
+func parseBgBehind(s string) (int, error) {
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 || n > 100 {
+		return 0, fmt.Errorf("invalid --bg-behind %q (expected 0-100)", s)
+	}
+	return n, nil
 }
 
 func parseLook(s string) (render.Look, error) {
