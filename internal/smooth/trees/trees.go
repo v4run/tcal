@@ -49,6 +49,10 @@ type look struct {
 	rate    float64     // falling things per tree per second
 	ground  scene.RGB
 	bare    bool // winter: no leaves, snow along the branches
+	// carpet is how thickly fallen leaves already cover the ground, and
+	// carpetCol their colours.
+	carpet    float64
+	carpetCol []scene.RGB
 }
 
 var looks = map[seasons.Season]look{
@@ -59,6 +63,7 @@ var looks = map[seasons.Season]look{
 		fall:   []scene.RGB{{R: 230, G: 170, B: 190}, {R: 240, G: 200, B: 210}},
 		rate:   0.5,
 		ground: scene.RGB{R: 85, G: 125, B: 65},
+		carpet: 0.35, carpetCol: []scene.RGB{{R: 230, G: 170, B: 190}, {R: 240, G: 200, B: 210}},
 	},
 	seasons.Summer: {
 		crown:  []scene.RGB{{R: 60, G: 120, B: 60}, {R: 80, G: 140, B: 70}, {R: 50, G: 105, B: 55}},
@@ -66,6 +71,7 @@ var looks = map[seasons.Season]look{
 		fall:   []scene.RGB{{R: 90, G: 145, B: 70}},
 		rate:   0.08,
 		ground: scene.RGB{R: 75, G: 120, B: 60},
+		carpet: 0.15, carpetCol: []scene.RGB{{R: 90, G: 145, B: 70}, {R: 125, G: 100, B: 60}},
 	},
 	seasons.Autumn: {
 		crown:  []scene.RGB{{R: 200, G: 110, B: 45}, {R: 210, G: 160, B: 60}, {R: 170, G: 70, B: 40}},
@@ -73,6 +79,7 @@ var looks = map[seasons.Season]look{
 		fall:   []scene.RGB{{R: 200, G: 110, B: 45}, {R: 210, G: 160, B: 60}, {R: 170, G: 70, B: 40}},
 		rate:   1.2,
 		ground: scene.RGB{R: 125, G: 100, B: 65},
+		carpet: 1, carpetCol: []scene.RGB{{R: 200, G: 110, B: 45}, {R: 210, G: 160, B: 60}, {R: 170, G: 70, B: 40}, {R: 140, G: 90, B: 50}},
 	},
 	seasons.Winter: {
 		fall:   []scene.RGB{{R: 220, G: 225, B: 235}},
@@ -95,7 +102,8 @@ var (
 const (
 	benchW  = 28
 	benchH  = 12
-	lampH   = 30
+	lampH   = 30 // the lamp's full height
+	lampMin = 20 // shortest the lamp shrinks to before it is left out
 	lampGap = 12 // dots between the bench and the lamp post
 )
 
@@ -152,6 +160,7 @@ type Scene struct {
 	seeds  [2]uint64 // tree shapes, fixed per side across re-layouts
 	trees  []tree
 	leaves []leaf
+	carpet []leaf  // leaves already on the ground; they stay
 	gustIn float64 // seconds until the next gust
 	gustT  float64 // seconds into the current gust, or -1
 	bird   *bird   // nil until there is somewhere to perch
@@ -172,6 +181,7 @@ func (s *Scene) SetTime(_, shown time.Time) {
 	if se := seasons.SeasonOf(shown.Month()); se != s.season {
 		s.season = se
 		s.leaves = nil
+		s.spread()
 		s.render()
 	}
 }
@@ -207,6 +217,42 @@ func (s *Scene) layout() {
 		}
 		rng := rand.New(rand.NewPCG(s.seeds[i], 7))
 		s.trees = append(s.trees, grow(rng, float64(m[0]*2), float64(m[1]*2), float64(s.h*4-2)))
+	}
+	s.spread()
+}
+
+// spread scatters the season's fallen leaves on the ground: piled around
+// each trunk, thinning out between the trees. The same layout and season
+// always give the same carpet.
+func (s *Scene) spread() {
+	s.carpet = nil
+	lk := looks[s.season]
+	if lk.carpet == 0 {
+		return
+	}
+	rng := rand.New(rand.NewPCG(s.seeds[0]^s.seeds[1], uint64(s.season)))
+	ground := float64(s.h*4 - 2)
+	add := func(x, y float64) {
+		if x >= 0 && x < float64(s.w*2-1) {
+			s.carpet = append(s.carpet, leaf{x: x, y: y, col: lk.carpetCol[rng.IntN(len(lk.carpetCol))]})
+		}
+	}
+	for _, t := range s.trees {
+		spread := 0.0
+		for _, tp := range t.tips {
+			spread = max(spread, math.Abs(tp.x)+tp.r)
+		}
+		for range int(lk.carpet * spread * 0.8) {
+			dx := rng.NormFloat64() * spread * 0.5
+			y := ground
+			if math.Abs(dx) < spread*0.25 && rng.Float64() < 0.35 {
+				y-- // a little pile near the trunk
+			}
+			add(t.baseX+dx, y)
+		}
+	}
+	for range int(lk.carpet * float64(s.w) * 0.12) {
+		add(rng.Float64()*float64(s.w*2), ground)
 	}
 }
 
@@ -375,8 +421,10 @@ func (s *Scene) park() (bx, by float64, bench bool, lx, ltop float64, lamp bool)
 		cx = float64(s.box.X0 + s.box.X1)
 	}
 	bx, by = cx-benchW/2, ground-benchH+1
-	lx, ltop = bx+benchW+lampGap, ground-lampH+1
-	return bx, by, free >= benchH+2, lx, ltop, free >= lampH+2
+	// The lamp shrinks to the room below the calendar.
+	lh := min(lampH, free-2)
+	lx, ltop = bx+benchW+lampGap, ground-lh+1
+	return bx, by, free >= benchH+2, lx, ltop, lh >= lampMin
 }
 
 // drawPark draws the bench, the lamp post beside it when there is room,
@@ -522,6 +570,10 @@ func (s *Scene) render() {
 		}
 	}
 
+	for _, l := range s.carpet {
+		s.dot(l.x, l.y, l.col)
+		s.dot(l.x+1, l.y, l.col)
+	}
 	s.drawPark(lk, ground)
 	s.drawBird(lk)
 
