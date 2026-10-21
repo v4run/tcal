@@ -411,3 +411,24 @@ func TestCells_ANSIFallbackKeepsHue(t *testing.T) {
 		t.Errorf("got %q; want red (31m)", got)
 	}
 }
+
+func TestBehind_FillsFaintRunsButNotSolidOnes(t *testing.T) {
+	sc := &fakeScene{}
+	p := bgPaint{style: styleFaint}
+	faint := "\x1b[2m 1 \x1b[0m"
+	got := behind(sc, 0, 0, faint, p)
+	if s := ansi.Strip(got); s != "⣿1⣿" {
+		t.Errorf("faint run: got %q, want ⣿1⣿", s)
+	}
+	if !strings.HasSuffix(got, "⣿"+faintOff+sgrReset+"\x1b[2m"+"\x1b[0m") {
+		t.Errorf("faint run: style not restored after the glyph: %q", got)
+	}
+
+	solid := "\x1b[1;30;43m 2 \x1b[0m"
+	if s := ansi.Strip(behind(sc, 0, 0, solid, p)); s != " 2 " {
+		t.Errorf("solid run: got %q, want it untouched", s)
+	}
+	if s := ansi.Strip(behind(sc, 0, 0, "\x1b[38;5;43m 3 \x1b[0m", p)); s != "⣿3⣿" {
+		t.Errorf("256-colour foreground is not a fill: got %q", s)
+	}
+}

@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"maps"
 	"math/rand/v2"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -246,7 +249,11 @@ func overlay(frame string, sc scene.Scene, w, h int, p bgPaint) string {
 			lines[y] = cells(sc, y, 0, w, b, p)
 			continue
 		}
-		lines[y] = cells(sc, y, 0, b.X0, b, p) + ln[b.X0:len(ln)-(w-b.X1)] + cells(sc, y, b.X1, w, b, p)
+		mid := ln[b.X0 : len(ln)-(w-b.X1)]
+		if bgBehind {
+			mid = behind(sc, y, b.X0, mid, p)
+		}
+		lines[y] = cells(sc, y, 0, b.X0, b, p) + mid + cells(sc, y, b.X1, w, b, p)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -313,4 +320,100 @@ func cells(sc scene.Scene, y, from, to int, b scene.Box, p bgPaint) string {
 		sb.WriteString(faintOff)
 	}
 	return sb.String()
+}
+
+// SPIKE: TCAL_BG_BEHIND=1 draws the background behind the calendar too,
+// in the blank cells between its characters, dimmer than in the margins.
+var bgBehind = os.Getenv("TCAL_BG_BEHIND") != ""
+
+// behindKeep is how much of a true-colour scene's colour survives behind
+// the calendar; the margins keep keepFactor.
+const behindKeep = 0.3
+
+// behind replaces the blank cells of seg, which starts at column x0 of row
+// y, with the scene's glyphs. Spaces inside a run with a background or
+// reverse (today's block) are kept; inside other styled runs (faint past
+// days) the glyph is drawn plainly and the run's style restored after it.
+// The scene sees an empty box, so it draws as if the calendar were not
+// there.
+func behind(sc scene.Scene, y, x0 int, seg string, p bgPaint) string {
+	empty := scene.Box{Y0: -1, Y1: -1}
+	colored, _ := sc.(scene.Colored)
+	trueColored, _ := sc.(scene.TrueColored)
+	if p.style != styleColor {
+		colored, trueColored = nil, nil
+	}
+	var sb strings.Builder
+	active, solid := "", false // SGR sequences since the last reset
+	x := x0
+	for i := 0; i < len(seg); {
+		if seg[i] == 0x1b {
+			j := i + 1
+			for j < len(seg) && (seg[j] < 0x40 || seg[j] > 0x7e || seg[j] == '[') {
+				j++
+			}
+			esc := seg[i : j+1]
+			params := strings.TrimSuffix(strings.TrimPrefix(esc, "\x1b["), "m")
+			if params == "" || params == "0" {
+				active, solid = "", false
+			} else {
+				active += esc
+				solid = solid || fillsCell(params)
+			}
+			sb.WriteString(esc)
+			i = j + 1
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(seg[i:])
+		i += size
+		g := rune(0)
+		if r == ' ' && !solid {
+			g = sc.Glyph(x, y, empty)
+		}
+		x++
+		if g == 0 {
+			sb.WriteRune(r)
+			continue
+		}
+		if active != "" {
+			sb.WriteString(sgrReset)
+		}
+		switch {
+		case p.style == stylePlain:
+			sb.WriteRune(g)
+		case trueColored != nil && p.mode == palette.TrueColor:
+			c := palette.Blend(trueColored.RGB(x-1, y, empty), p.bg, behindKeep)
+			fmt.Fprintf(&sb, "\x1b[38;2;%d;%d;%dm%c%s", c.R, c.G, c.B, g, fgReset)
+		case trueColored != nil:
+			sb.WriteString(faintOn + sgrColor(palette.Nearest(trueColored.RGB(x-1, y, empty))) + string(g) + fgReset + faintOff)
+		case colored != nil:
+			sb.WriteString(faintOn + sgrColor(colored.Color(x-1, y, empty)) + string(g) + fgReset + faintOff)
+		default:
+			sb.WriteString(faintOn + string(g) + faintOff)
+		}
+		if active != "" {
+			sb.WriteString(sgrReset + active)
+		}
+	}
+	return sb.String()
+}
+
+const sgrReset = "\x1b[0m"
+
+// fillsCell reports whether SGR params set a background or reverse video.
+func fillsCell(params string) bool {
+	ps := strings.Split(params, ";")
+	for k := 0; k < len(ps); k++ {
+		switch n, _ := strconv.Atoi(ps[k]); {
+		case n == 38 && k+1 < len(ps): // extended foreground: skip its arguments
+			if ps[k+1] == "5" {
+				k += 2
+			} else {
+				k += 4
+			}
+		case n == 7, n >= 40 && n <= 48, n >= 100 && n <= 107:
+			return true
+		}
+	}
+	return false
 }
