@@ -2,7 +2,6 @@ package render
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/v4run/tcal/internal/calendar"
@@ -68,23 +67,23 @@ func Frame(state State, opts Options) string {
 	startTime := state.Anchor.AddDate(y-state.Anchor.Year(), m-int(state.Anchor.Month()), 0)
 	monthData := calendar.BuildMonths(startTime, months, opts.WeekStart)
 
-	// The year view is an overview: it always uses the classic look.
-	if opts.Look == LookThin && state.Layout != LayoutGrid {
-		if out, ok := thinFrame(state, opts, months, monthData); ok {
-			return out
-		}
-	}
-	opts.Look = LookClassic
-
 	var block string
+	min := minWidthFor(state.Layout, months)
 	if state.Layout == LayoutGrid {
+		// The year view is an overview: it always uses the classic look.
+		opts.Look = LookClassic
 		block = gridBlock(state, opts, monthData)
 	} else {
-		block = header(state, opts) + "\n\n" + RenderLayout(state.Layout, monthData, state.Today, opts)
+		var fits bool
+		block, fits = horizontalBlock(state, opts, months, monthData)
+		if fits {
+			min = 0
+		} else {
+			min = minWidthFor(LayoutHorizontal, 1)
+		}
 	}
 
 	// Width hint
-	min := minWidthFor(state.Layout, months)
 	if state.Width > 0 && state.Width < min {
 		hint := fmt.Sprintf("terminal too narrow — needs ≥ %d cols", min)
 		return hint + "\n" + block
@@ -136,34 +135,4 @@ func gridBlock(state State, opts Options, monthData []calendar.Month) string {
 		}
 	}
 	return build(opts, defaultGridCols)
-}
-
-// thinFrame renders the thin look. It reports false when the block would
-// not fit the screen, so the caller can fall back to classic.
-func thinFrame(state State, opts Options, months int, monthData []calendar.Month) (string, bool) {
-	header := state.Now.Format("Mon, 02 Jan 2006 15:04")
-	if opts.WithClock {
-		header = RenderThinClock(state.Now, opts.Color)
-	}
-	body := RenderLayout(state.Layout, monthData, state.Today, opts)
-	// Centre the header over the months; Fit centres the block as a whole.
-	bw := lipgloss.Width(body)
-	hw := lipgloss.Width(header)
-	lines := strings.Split(header, "\n")
-	for i, l := range lines {
-		lines[i] = strings.Repeat(" ", max(0, (bw-hw)/2)) + l
-	}
-	block := strings.Join(lines, "\n") + "\n\n" + body
-
-	width := state.Width
-	if width <= 0 {
-		width = blockWidth(months, thinMonthWidth)
-	}
-	if lipgloss.Width(block) > width {
-		return "", false
-	}
-	if state.Height > 0 && lipgloss.Height(block) > state.Height {
-		return "", false
-	}
-	return Fit(block, width, state.Height), true
 }
