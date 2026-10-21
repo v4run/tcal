@@ -53,6 +53,7 @@ type look struct {
 	// carpetCol their colours.
 	carpet    float64
 	carpetCol []scene.RGB
+	snow      bool // snow falls across the screen
 }
 
 var looks = map[seasons.Season]look{
@@ -86,6 +87,8 @@ var looks = map[seasons.Season]look{
 		rate:   0.3,
 		ground: scene.RGB{R: 195, G: 200, B: 210},
 		bare:   true,
+		carpet: 0.9, carpetCol: []scene.RGB{{R: 215, G: 220, B: 230}, {R: 200, G: 205, B: 218}},
+		snow: true,
 	},
 }
 
@@ -161,6 +164,7 @@ type Scene struct {
 	trees  []tree
 	leaves []leaf
 	carpet []leaf // leaves already on the ground; they stay
+	flakes []leaf // falling snow, in winter; rest holds each flake's speed
 	// birdCells are the cells the bird is in while a frame is drawn;
 	// nothing else draws there, so leaves never hide it.
 	birdCells map[[2]int]bool
@@ -183,7 +187,7 @@ func New(w, h int, rng *rand.Rand) *Scene {
 func (s *Scene) SetTime(_, shown time.Time) {
 	if se := seasons.SeasonOf(shown.Month()); se != s.season {
 		s.season = se
-		s.leaves = nil
+		s.leaves, s.flakes = nil, nil
 		s.spread()
 		s.render()
 	}
@@ -222,6 +226,48 @@ func (s *Scene) layout() {
 		s.trees = append(s.trees, grow(rng, float64(m[0]*2), float64(m[1]*2), float64(s.h*4-2)))
 	}
 	s.spread()
+}
+
+// Snowfall: one flake per flakeArea cells, falling flakeSpeed dots per
+// second (give or take 30%), swaying as they go.
+const (
+	flakeArea  = 60
+	flakeSpeed = 5.0
+)
+
+var flakeCol = scene.RGB{R: 205, G: 210, B: 222}
+
+// stepSnow keeps the winter snowfall going: flakes fall and sway, drift in
+// gusts, and start again at the top once they reach the ground.
+func (s *Scene) stepSnow(sec float64) {
+	if !looks[s.season].snow || s.w == 0 || s.h == 0 {
+		s.flakes = nil
+		return
+	}
+	W, ground := float64(s.w*2), float64(s.h*4-2)
+	// The first flakes fill the sky; later ones start at the top.
+	first := len(s.flakes) == 0
+	for range s.w*s.h/flakeArea - len(s.flakes) {
+		x, y := s.rng.Float64()*W, -s.rng.Float64()*4
+		if first {
+			y = s.rng.Float64() * ground
+		}
+		s.flakes = append(s.flakes, leaf{x: x, x0: x, y: y,
+			phase: s.rng.Float64() * 2 * math.Pi,
+			rest:  flakeSpeed * (0.7 + 0.6*s.rng.Float64())})
+	}
+	wind := s.wind()
+	for i := range s.flakes {
+		f := &s.flakes[i]
+		f.phase += 0.9 * sec
+		f.y += f.rest * sec
+		f.x0 += wind * 0.8 * sec
+		f.x = f.x0 + 1.5*math.Sin(f.phase)
+		if f.y >= ground || f.x < -3 || f.x > W+3 {
+			f.x0 = s.rng.Float64() * W
+			f.x, f.y = f.x0, -s.rng.Float64()*4
+		}
+	}
 }
 
 // spread scatters the season's fallen leaves on the ground: piled around
@@ -336,6 +382,7 @@ func (s *Scene) Step(dt time.Duration) {
 	}
 
 	s.stepBird(sec)
+	s.stepSnow(sec)
 
 	lk := looks[s.season]
 	wind := s.wind()
@@ -588,6 +635,9 @@ func (s *Scene) render() {
 		}
 	}
 
+	for _, f := range s.flakes {
+		s.dot(f.x, f.y, flakeCol)
+	}
 	for _, l := range s.carpet {
 		s.dot(l.x, l.y, l.col)
 		s.dot(l.x+1, l.y, l.col)
