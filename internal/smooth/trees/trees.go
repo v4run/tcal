@@ -93,13 +93,10 @@ var (
 
 // The bench and lamp post, in dots.
 const (
-	benchW   = 28
-	benchH   = 12
-	lampH    = 30
-	lampGap  = 12 // dots between the bench and the lamp post
-	birdMin  = 20.0
-	birdVar  = 20.0
-	birdTime = 5.0 // seconds a flight takes
+	benchW  = 28
+	benchH  = 12
+	lampH   = 30
+	lampGap = 12 // dots between the bench and the lamp post
 )
 
 // benchArt is the bench seen from the front; '#' is wood, '|' iron.
@@ -157,9 +154,7 @@ type Scene struct {
 	leaves []leaf
 	gustIn float64 // seconds until the next gust
 	gustT  float64 // seconds into the current gust, or -1
-	birdIn float64 // seconds until the next flight
-	birdT  float64 // seconds into the current flight, or -1
-	birdLR bool    // the current flight goes left to right
+	bird   *bird   // nil until there is somewhere to perch
 	canvas dots.Canvas
 }
 
@@ -168,7 +163,6 @@ func New(w, h int, rng *rand.Rand) *Scene {
 	s := &Scene{rng: rng, season: seasons.SeasonOf(time.Now().Month()), gustT: -1}
 	s.seeds = [2]uint64{rng.Uint64(), rng.Uint64()}
 	s.gustIn = gustMin + rng.Float64()*gustVar
-	s.birdT, s.birdIn = -1, 6+rng.Float64()*6
 	s.Resize(w, h)
 	return s
 }
@@ -199,7 +193,7 @@ func (s *Scene) Resize(w, h int) {
 // layout fits a tree into each margin beside the calendar box, or into the
 // outer thirds of an empty screen.
 func (s *Scene) layout() {
-	s.trees, s.leaves = nil, nil
+	s.trees, s.leaves, s.bird = nil, nil, nil
 	if s.w == 0 || s.h < 6 {
 		return
 	}
@@ -292,18 +286,7 @@ func (s *Scene) Step(dt time.Duration) {
 		s.gustT = 0
 	}
 
-	if s.birdT >= 0 {
-		if s.birdT += sec; s.birdT >= birdTime {
-			s.birdT = -1
-			s.birdIn = birdMin + s.rng.Float64()*birdVar
-		}
-	} else if s.birdIn -= sec; s.birdIn <= 0 {
-		if len(s.trees) == 2 && s.flightTop() >= 0 {
-			s.birdT, s.birdLR = 0, s.rng.IntN(2) == 0
-		} else {
-			s.birdIn = birdMin
-		}
-	}
+	s.stepBird(sec)
 
 	lk := looks[s.season]
 	wind := s.wind()
@@ -381,31 +364,28 @@ func (s *Scene) freeBelow() float64 {
 	return ground - float64((s.box.Y1+1)*4)
 }
 
-// flightTop is the dot row of the bird's highest point, above the calendar
-// box, or -1 when there is no room there.
-func (s *Scene) flightTop() float64 {
-	if !s.boxSet || s.box.Y0 == -1 {
-		return float64(s.h*4) * 0.2
+// park is where the bench and lamp post stand: the bench's top-left dot,
+// the lamp's pole column and the row of its cap, and whether each fits
+// below the calendar.
+func (s *Scene) park() (bx, by float64, bench bool, lx, ltop float64, lamp bool) {
+	ground := float64(s.h*4 - 2)
+	free := s.freeBelow()
+	cx := float64(s.w)
+	if s.boxSet && s.box.Y0 != -1 {
+		cx = float64(s.box.X0 + s.box.X1)
 	}
-	if s.box.Y0 < 2 {
-		return -1
-	}
-	return float64(s.box.Y0*4) - 3
+	bx, by = cx-benchW/2, ground-benchH+1
+	lx, ltop = bx+benchW+lampGap, ground-lampH+1
+	return bx, by, free >= benchH+2, lx, ltop, free >= lampH+2
 }
 
 // drawPark draws the bench, the lamp post beside it when there is room,
 // and snow on both in winter, centred on the ground below the calendar.
 func (s *Scene) drawPark(lk look, ground float64) {
-	free := s.freeBelow()
-	if free < benchH+2 {
+	bx, by, bench, lx, top, lamp := s.park()
+	if !bench {
 		return
 	}
-	cx := float64(s.w)
-	if s.boxSet && s.box.Y0 != -1 {
-		cx = float64(s.box.X0 + s.box.X1)
-	}
-	bx := cx - benchW/2
-	by := ground - benchH + 1
 	for dy, row := range benchArt {
 		for dx, ch := range row {
 			switch ch {
@@ -421,11 +401,9 @@ func (s *Scene) drawPark(lk look, ground float64) {
 			s.dot(bx+float64(dx), by-1, snowCol)
 		}
 	}
-	if free < lampH+2 {
+	if !lamp {
 		return
 	}
-	lx := bx + benchW + lampGap
-	top := ground - lampH + 1
 	s.line(lx, ground, lx, top+4, 1, ironCol)
 	s.line(lx+1, ground, lx+1, ground-2, 1, ironCol)
 	s.line(lx-1, ground, lx-1, ground-2, 1, ironCol)
@@ -447,44 +425,6 @@ func (s *Scene) flicker() float64 {
 		k *= 0.6
 	}
 	return k
-}
-
-// drawBird draws the bird partway along its arc from one crown to the
-// other, wings up or down.
-func (s *Scene) drawBird(ground float64) {
-	if s.birdT < 0 || len(s.trees) != 2 {
-		return
-	}
-	peak := s.flightTop()
-	if peak < 0 {
-		return
-	}
-	a, b := s.trees[0], s.trees[1]
-	if !s.birdLR {
-		a, b = b, a
-	}
-	crown := func(t tree) (float64, float64) {
-		return t.baseX, ground - t.height*0.75
-	}
-	ax, ay := crown(a)
-	bx, by := crown(b)
-	u := s.birdT / birdTime
-	u = u * u * (3 - 2*u) // ease out of one tree and into the other
-	x := ax + (bx-ax)*u
-	// A flat-topped arc: it climbs out of one crown, crosses level over
-	// the calendar and drops into the other.
-	v := 2*u - 1
-	base := ay + (by-ay)*u
-	y := base - (base-peak)*(1-v*v*v*v)
-	wing := -1.0
-	if math.Sin(s.birdT*14) < 0 {
-		wing = 1
-	}
-	s.dot(x, y, birdCol)
-	s.dot(x-1, y+wing, birdCol)
-	s.dot(x+1, y+wing, birdCol)
-	s.dot(x-2, y+wing*0.5, birdCol)
-	s.dot(x+2, y+wing*0.5, birdCol)
 }
 
 func (s *Scene) dot(x, y float64, col scene.RGB) {
@@ -583,7 +523,7 @@ func (s *Scene) render() {
 	}
 
 	s.drawPark(lk, ground)
-	s.drawBird(ground)
+	s.drawBird(lk)
 
 	for _, l := range s.leaves {
 		col := l.col
