@@ -168,6 +168,7 @@ type Scene struct {
 	// birdCells are the cells the bird is in while a frame is drawn;
 	// nothing else draws there, so leaves never hide it.
 	birdCells map[[2]int]bool
+	solid     bool    // drawing the bench or lamp, which the bird may share cells with
 	gustIn    float64 // seconds until the next gust
 	gustT     float64 // seconds into the current gust, or -1
 	bird      *bird   // nil until there is somewhere to perch
@@ -473,7 +474,11 @@ func (s *Scene) park() (bx, by float64, bench bool, lx, ltop float64, lamp bool)
 	bx, by = cx-benchW/2, ground-benchH+1
 	// The lamp shrinks to the room below the calendar.
 	lh := min(lampH, free-2)
-	lx, ltop = bx+benchW+lampGap, ground-lh+1
+	// Put the cap on the first dot row of a cell, so a bird on it sits in
+	// the cell above and never greys the glow.
+	ltop = math.Ceil((ground-lh+1)/4) * 4
+	lh = ground - ltop + 1
+	lx = bx + benchW + lampGap
 	return bx, by, free >= benchH+2, lx, ltop, lh >= lampMin
 }
 
@@ -484,6 +489,8 @@ func (s *Scene) drawPark(lk look, ground float64) {
 	if !bench {
 		return
 	}
+	s.solid = true
+	defer func() { s.solid = false }()
 	for dy, row := range benchArt {
 		for dx, ch := range row {
 			switch ch {
@@ -529,8 +536,8 @@ func (s *Scene) dot(x, y float64, col scene.RGB) {
 	if y < 0 || x < 0 {
 		return
 	}
-	if s.birdCells[cellOf(pt{x, y})] {
-		return // the bird's cells hold only the bird
+	if !s.solid && s.birdCells[cellOf(pt{x, y})] {
+		return // the bird's cells hold only the bird and solid things
 	}
 	s.canvas.Dot(x/2, y/4, col)
 }
