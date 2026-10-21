@@ -24,10 +24,19 @@ func RenderLayout(layout Layout, months []calendar.Month, today time.Time, opts 
 	case LayoutHorizontal:
 		return joinHorizontal(blocks)
 	case LayoutGrid:
-		return joinGrid(blocks, 3)
+		return joinGrid(blocks, defaultGridCols)
 	default:
 		return joinHorizontal(blocks)
 	}
+}
+
+// RenderGrid lays the months out cols to a row.
+func RenderGrid(months []calendar.Month, today time.Time, cols int, opts Options) string {
+	blocks := make([]string, len(months))
+	for i, m := range months {
+		blocks[i] = RenderMonth(m, today, opts)
+	}
+	return joinGrid(blocks, cols)
 }
 
 // joinGrid arranges blocks in rows of cols, joined horizontally within each

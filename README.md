@@ -42,7 +42,7 @@ tcal --print | lpr
 
 | Flag             | Default        | Notes                                      |
 |------------------|----------------|--------------------------------------------|
-| `--layout`       | `horizontal`   | `horizontal \| grid`                       |
+| `--layout`       | `horizontal`   | `horizontal \| grid`; see [Grid layout](#grid-layout) |
 | `--date`         | today          | `YYYY-MM` or `YYYY-MM-DD`                  |
 | `--year`         | (anchor year)  | shorthand for `--date=YYYY-01`             |
 | `--months`       | layout default | per-layout: 3 / 12                         |
@@ -100,6 +100,12 @@ tcal --bg hourglass --bg-time 10:55         # nearly full hourglass
 
 `seasons` follows the month on screen — page with `h`/`l` to change the season.
 
+## Grid layout
+
+`--layout grid` (or `2` while running) shows the whole year. It picks the widest arrangement that fits the screen, from 6×2 through 4×3 and 3×4 to 2×6 months, so a wide terminal leaves room below the calendar for backgrounds. When none fits under the block or boxed clock, the clock shrinks to one line; when even that doesn't fit, it keeps 3×4. Print mode fits the arrangement to `--width` (or the terminal), and keeps 3×4 when the width is unknown.
+
+The year view is an overview, so it always uses the classic look.
+
 ## Thin look
 
 `--look thin` draws the clock and the day numbers three rows tall in thin lines. A bar under the time fills across each minute. Past days are dim, weekends grey, and today is a solid block in the accent colour (bracketed when color is off).
@@ -108,7 +114,7 @@ tcal --bg hourglass --bg-time 10:55         # nearly full hourglass
 tcal --look thin --months 1
 ```
 
-A thin month is 49 columns wide and 22 rows tall, so three side by side need about 150 columns. When the thin calendar doesn't fit the screen (or `--width` in print mode), tcal falls back to the classic look. `--clock-style` is ignored in the thin look. Set `look = "thin"` in the [config file](#config-file) to make it your default.
+A thin month is 49 columns wide and 22 rows tall, so three side by side need about 150 columns. When the thin calendar doesn't fit the screen (or `--width` in print mode), tcal falls back to the classic look; the grid layout always uses it. `--clock-style` is ignored in the thin look. Set `look = "thin"` in the [config file](#config-file) to make it your default.
 
 ## Smooth style
 
@@ -215,7 +221,7 @@ These flags cannot be set in the config: `--date`, `--year`, `--print`, `--bg-ti
 After any change to layout/centering code, run through:
 
 - [ ] `tcal` — horizontal layout, clock ticks, terminal resize re-centers.
-- [ ] `tcal --layout grid` — 12-month wallchart fits in a standard terminal.
+- [ ] `tcal --layout grid` — the year fits: 4×3 at 120×36, 6×2 from about 132 columns; resize to watch it rearrange.
 - [ ] `tcal --print --layout grid --date 2026-01 > /tmp/y.txt && cat /tmp/y.txt` — clean static output.
 - [ ] `NO_COLOR=1 tcal` — no color escapes in output; today still distinguishable via reverse video.
 - [ ] Run in a 40×10 terminal — "too narrow" hint appears at the top.
