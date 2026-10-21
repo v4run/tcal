@@ -86,7 +86,7 @@ func RenderThinClock(now time.Time, color bool) string {
 }
 
 // RenderThinMonth renders one month with 3-row day numbers. Past days are
-// faint, weekends grey and today decorated per opts.Highlight. Without
+// faint, weekends grey and today a solid accent block per opts.Highlight. Without
 // color, any highlight other than none falls back to brackets so today
 // still stands out.
 func RenderThinMonth(m calendar.Month, today time.Time, opts Options) string {
@@ -159,13 +159,13 @@ func thinDay(day int, isToday bool, opts Options) [3]string {
 }
 
 // todayStyle maps the highlight mask to a style for today's thin cell.
-// Combined (reverse and color) is the accent color in bold; a solid
-// reversed block would drown the thin digits.
+// Combined and color fill the whole cell with the accent color behind
+// dark bold digits; reverse inverts it.
 func todayStyle(mask HighlightMask) lipgloss.Style {
 	st := lipgloss.NewStyle()
 	switch {
 	case mask&HighlightColor != 0:
-		st = st.Foreground(accentColor).Bold(mask&HighlightReverse != 0)
+		st = st.Background(accentColor).Foreground(lipgloss.Color("0")).Bold(true)
 	case mask&HighlightReverse != 0:
 		st = st.Reverse(true)
 	}

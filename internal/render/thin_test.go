@@ -65,7 +65,7 @@ func TestThinMonth_TodayWithoutColorGetsBrackets(t *testing.T) {
 	}
 }
 
-func TestThinMonth_TodayAccentWithColor(t *testing.T) {
+func TestThinMonth_TodaySolidAccentWithColor(t *testing.T) {
 	m := calendar.BuildMonths(time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), 1, time.Sunday)[0]
 	o := thinOpts()
 	o.Color = true
@@ -73,8 +73,9 @@ func TestThinMonth_TodayAccentWithColor(t *testing.T) {
 	if strings.Contains(got, "┌") {
 		t.Error("combined highlight should not bracket today when color is on")
 	}
-	if !strings.Contains(got, lipgloss.NewStyle().Foreground(accentColor).Bold(true).Render(" ╺┓  ╻ ")) {
-		t.Error("today's top row should be in the bold accent color")
+	block := lipgloss.NewStyle().Background(accentColor).Foreground(lipgloss.Color("0")).Bold(true)
+	if !strings.Contains(got, block.Render(" ╺┓  ╻ ")) {
+		t.Error("today's top row should be a solid accent block")
 	}
 }
 

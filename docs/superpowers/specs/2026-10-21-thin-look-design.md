@@ -17,8 +17,8 @@ spacing).
   kept.
 - Month: day numbers in 3-row × 2-col digits, cells 7 cols wide (49 per
   month), weeks stacked with no gaps (22 rows a month). Past days faint,
-  weekends ANSI 8, today per `--highlight`: `color` accent, `combined`
-  accent + bold, `reverse` reversed cell, `bracket` corner brackets. With
+  weekends ANSI 8, today per `--highlight`: `color` and `combined` a
+  solid accent block with dark bold digits, `reverse` reversed cell, `bracket` corner brackets. With
   color off any highlight but `none` becomes brackets.
 - Several months sit side by side (horizontal) or 3 per row (grid) when
   they fit. If the thin block is wider or taller than the screen (or

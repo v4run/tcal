@@ -98,7 +98,7 @@ tcal --bg hourglass --bg-time 10:55         # nearly full hourglass
 
 ## Thin look
 
-`--look thin` draws the clock and the day numbers three rows tall in thin lines. A bar under the time fills across each minute. Past days are dim, weekends grey, and today is in the accent colour (bracketed when color is off).
+`--look thin` draws the clock and the day numbers three rows tall in thin lines. A bar under the time fills across each minute. Past days are dim, weekends grey, and today is a solid block in the accent colour (bracketed when color is off).
 
 ```
 tcal --look thin --months 1
