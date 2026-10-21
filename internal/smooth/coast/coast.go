@@ -349,16 +349,22 @@ func (s *Scene) render() {
 	for _, rk := range s.rocks {
 		for i, top := range rk.tops {
 			x := rk.cx - rk.r + float64(i)
-			// Facets: a shade per cell column, so neighbouring dots in
-			// one cell always share a colour.
-			facet := 0.85 + 0.3*hash(int(x)/2, 7)
-			for y := int(top); y < H; y++ {
-				depth := float64(y) - top
-				col := mix(edgeCol, scale(rockCol, facet), min(1, depth/3))
-				if float64(y) > seaRow {
-					col = mix(col, deepCol, 0.7)
+			sy := s.surface(x)
+			s.dot(x, top, edgeCol)
+			// Speckle in vertical pairs of dots within a cell, so no cell
+			// holds a lone dot. Below the moving surface the rock fades
+			// into the sea.
+			for y := int(top) + 1; y < H; y++ {
+				col, p := rockCol, 0.3
+				if float64(y) > sy {
+					col, p = mix(rockCol, deepCol, 0.6), 0.14
 				}
-				s.dot(x, float64(y), col)
+				if hash(int(x), y/2) < p {
+					s.dot(x, float64(y), col)
+				}
+			}
+			if sy > top {
+				s.dot(x, sy, surfCol)
 			}
 		}
 	}
