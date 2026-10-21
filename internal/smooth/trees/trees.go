@@ -21,6 +21,13 @@ const step = 33 * time.Millisecond
 // minMargin is the narrowest margin, in columns, that gets a tree.
 const minMargin = 12
 
+// A tree is at most maxTreeCols columns wide and maxTreeH of the screen
+// tall, however wide its margin.
+const (
+	maxTreeCols = 36
+	maxTreeH    = 0.75
+)
+
 const (
 	fallSpeed = 6.0  // dots per second, downwards
 	swayAmp   = 3.0  // dots
@@ -347,8 +354,10 @@ func grow(rng *rand.Rand, x0, x1, maxH float64) tree {
 	// Fit the width; stretch upward (to at most maxStretch) to fill the
 	// height a narrow margin leaves unused. Leaf clusters stay round.
 	const maxStretch = 1.8
-	kx := min((x1-x0-4)/(maxX-minX), maxH*0.92/maxY)
-	ky := min(maxH*0.92/maxY, kx*maxStretch)
+	width := min(x1-x0-4, maxTreeCols*2)
+	tall := min(maxH*0.92, maxH*maxTreeH)
+	kx := min(width/(maxX-minX), tall/maxY)
+	ky := min(tall/maxY, kx*maxStretch)
 	t.baseX = (x0+x1)/2 - (minX+maxX)/2*kx
 	t.height = maxY * ky
 	for i := range t.limbs {
