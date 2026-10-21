@@ -54,6 +54,7 @@ tcal --print | lpr
 | `--with-clock`   | off            | include block clock in print mode          |
 | `--clock-style`  | `block`        | `block \| inline \| boxed`                 |
 | `--look`         | `classic`      | `classic \| thin`; see [Thin look](#thin-look) |
+| `--small-neighbors` | `true`      | thin look: when three thin months don't fit, show this month between small neighbours; `false` shows it alone |
 | `--bg`           | `none`         | `none`, `random`, or a name from [Backgrounds](#backgrounds) (live mode only) |
 | `--bg-behind`    | `0`            | background opacity behind the calendar and clock, `0`–`100`; `0` keeps it clear. Every step shows in true colour; other palettes are only off or faint |
 | `--bg-color`     | `true`         | tint the background; `false` draws it dim in the foreground color |
@@ -119,7 +120,7 @@ A thin month is 49 columns wide and 22 rows tall. When the calendar doesn't fit 
 | Step | Shown | Needs about |
 |------|-------|-------------|
 | 1 | all the months in thin digits | 151 columns for three |
-| 2 | this month in thin digits, the months either side small and dim | 95 columns |
+| 2 | this month in thin digits, the months either side small and dim (`--small-neighbors=false` skips this) | 95 columns |
 | 3 | this month alone in thin digits | 50 columns |
 | 4 | the classic look, then fewer months (5 → 3 → 1) | 64, then 20 columns |
 
@@ -197,6 +198,7 @@ week-start  = "mon"         # sun | mon
 highlight   = "combined"    # combined | reverse | bracket | color | none
 clock-style = "block"       # block | inline | boxed
 look        = "classic"     # classic | thin
+small-neighbors = true      # thin look: small months either side when three big ones don't fit
 with-clock  = true
 no-color    = false
 bg          = "random"      # none | random | <background name>

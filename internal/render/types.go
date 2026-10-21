@@ -49,4 +49,7 @@ type Options struct {
 	ClockStyle ClockStyle
 	WithClock  bool
 	Look       Look
+	// NoSmallNeighbors skips the thin look's middle step, the current
+	// month between small neighbours, when three thin months don't fit.
+	NoSmallNeighbors bool
 }

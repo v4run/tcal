@@ -143,6 +143,7 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	width := fs.Int("width", 0, "terminal width (print mode only)")
 	withClock := fs.Bool("with-clock", false, "include block clock in print mode")
 	clockStyle := fs.String("clock-style", "block", "block|inline|boxed")
+	smallNeighbors := fs.Bool("small-neighbors", true, "thin look: when three thin months don't fit, show this month between the months either side, small")
 	look := fs.String("look", "classic", "clock and calendar look: classic|thin (thin falls back to classic when it does not fit)")
 	bgS := fs.String("bg", "none", "ambient background in live mode: none|random|"+strings.Join(tui.Backgrounds(), "|"))
 	bgStyleS := fs.String("bg-style", tui.StyleClassic, "background style: "+strings.Join(tui.Styles(), "|"))
@@ -191,21 +192,22 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	}
 
 	validators := map[string]func(string) error{
-		"layout":      func(s string) error { _, err := parseLayout(s); return err },
-		"week-start":  func(s string) error { _, err := parseWeekStart(s); return err },
-		"highlight":   func(s string) error { _, err := parseHighlight(s); return err },
-		"clock-style": func(s string) error { _, err := parseClockStyle(s); return err },
-		"look":        func(s string) error { _, err := parseLook(s); return err },
-		"bg":          func(s string) error { _, err := parseBackground(s); return err },
-		"bg-style":    func(s string) error { _, err := parseBgStyle(s); return err },
-		"bg-palette":  func(s string) error { _, err := parseBgPalette(s); return err },
-		"no-color":    func(s string) error { _, err := strconv.ParseBool(s); return err },
-		"with-clock":  func(s string) error { _, err := strconv.ParseBool(s); return err },
-		"bg-color":    func(s string) error { _, err := strconv.ParseBool(s); return err },
-		"events":      func(s string) error { _, err := strconv.ParseBool(s); return err },
-		"months":      func(s string) error { _, err := strconv.Atoi(s); return err },
-		"bg-behind":   func(s string) error { _, err := parseBgBehind(s); return err },
-		"width":       func(s string) error { _, err := strconv.Atoi(s); return err },
+		"layout":          func(s string) error { _, err := parseLayout(s); return err },
+		"week-start":      func(s string) error { _, err := parseWeekStart(s); return err },
+		"highlight":       func(s string) error { _, err := parseHighlight(s); return err },
+		"clock-style":     func(s string) error { _, err := parseClockStyle(s); return err },
+		"look":            func(s string) error { _, err := parseLook(s); return err },
+		"bg":              func(s string) error { _, err := parseBackground(s); return err },
+		"bg-style":        func(s string) error { _, err := parseBgStyle(s); return err },
+		"bg-palette":      func(s string) error { _, err := parseBgPalette(s); return err },
+		"no-color":        func(s string) error { _, err := strconv.ParseBool(s); return err },
+		"with-clock":      func(s string) error { _, err := strconv.ParseBool(s); return err },
+		"small-neighbors": func(s string) error { _, err := strconv.ParseBool(s); return err },
+		"bg-color":        func(s string) error { _, err := strconv.ParseBool(s); return err },
+		"events":          func(s string) error { _, err := strconv.ParseBool(s); return err },
+		"months":          func(s string) error { _, err := strconv.Atoi(s); return err },
+		"bg-behind":       func(s string) error { _, err := parseBgBehind(s); return err },
+		"width":           func(s string) error { _, err := strconv.Atoi(s); return err },
 	}
 	keys := make([]string, 0, len(cfg.Flags))
 	for k := range cfg.Flags {
@@ -279,6 +281,7 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	if opts.Look, err = parseLook(*look); err != nil {
 		return runConfig{}, err
 	}
+	opts.NoSmallNeighbors = !*smallNeighbors
 
 	return runConfig{
 		state:    state,

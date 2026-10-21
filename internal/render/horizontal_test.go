@@ -64,6 +64,16 @@ func TestFrame_HorizontalThinStepsDown(t *testing.T) {
 	}
 }
 
+func TestFrame_NoSmallNeighborsSkipsTheMiddleStep(t *testing.T) {
+	o := Options{WeekStart: time.Sunday, Highlight: HighlightAll, WithClock: true, Look: LookThin, NoSmallNeighbors: true}
+	if got := shapeOf(Frame(horizState(120, 36), o)); got != (shape{"Oct", true, false, false}) {
+		t.Errorf("got %+v, want thin October alone", got)
+	}
+	if got := shapeOf(Frame(horizState(160, 45), o)); got.months != "Sep Oct Nov" || got.small {
+		t.Errorf("got %+v, want three thin months when they fit", got)
+	}
+}
+
 func TestFrame_FocusDimsTheNeighbours(t *testing.T) {
 	o := Options{WeekStart: time.Sunday, Highlight: HighlightAll, WithClock: true, Look: LookThin, Color: true}
 	got := Frame(horizState(120, 36), o)
