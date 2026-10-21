@@ -52,6 +52,7 @@ tcal --print | lpr
 | `--width`        | TTY width / 80 | print mode only                            |
 | `--with-clock`   | off            | include block clock in print mode          |
 | `--clock-style`  | `block`        | `block \| inline \| boxed`                 |
+| `--look`         | `classic`      | `classic \| thin`; see [Thin look](#thin-look) |
 | `--bg`           | `none`         | `none`, `random`, or a name from [Backgrounds](#backgrounds) (live mode only) |
 | `--bg-color`     | `true`         | tint the background; `false` draws it dim in the foreground color |
 | `--bg-time`      | now            | time seen by `sky`/`hourglass` and by [events](#events): `HH:MM`, `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM` |
@@ -94,6 +95,16 @@ tcal --bg hourglass --bg-time 10:55         # nearly full hourglass
 ```
 
 `seasons` follows the month on screen — page with `h`/`l` to change the season.
+
+## Thin look
+
+`--look thin` draws the clock and the day numbers three rows tall in thin lines. A bar under the time fills across each minute. Past days are dim, weekends grey, and today is in the accent colour (bracketed when color is off).
+
+```
+tcal --look thin --months 1
+```
+
+A thin month is 49 columns wide and 22 rows tall, so three side by side need about 150 columns. When the thin calendar doesn't fit the screen (or `--width` in print mode), tcal falls back to the classic look. `--clock-style` is ignored in the thin look. Set `look = "thin"` in the [config file](#config-file) to make it your default.
 
 ## Smooth style
 
@@ -166,6 +177,7 @@ layout      = "grid"        # horizontal | grid
 week-start  = "mon"         # sun | mon
 highlight   = "combined"    # combined | reverse | bracket | color | none
 clock-style = "block"       # block | inline | boxed
+look        = "classic"     # classic | thin
 with-clock  = true
 no-color    = false
 bg          = "random"      # none | random | <background name>
@@ -207,6 +219,8 @@ After any change to layout/centering code, run through:
 - [ ] `tcal --bg aquarium` vs `tcal --bg aquarium --bg-color=false` — tinted vs plain dim; `NO_COLOR=1` shows no escapes.
 - [ ] `tcal --bg sky --bg-time 22:30` — night sky and moon, while the calendar header shows the real time.
 - [ ] `tcal --bg-style smooth --bg rain` — braille drizzle, smooth motion.
+- [ ] `tcal --look thin --months 1` — thin clock with a seconds bar over this month in big day numbers; shrink the terminal and it falls back to classic.
+- [ ] `NO_COLOR=1 tcal --look thin --months 1` — today in corner brackets, no escapes.
 - [ ] `COLORTERM= tcal --bg-style smooth --bg sky` — ANSI fallback: 16-color tinting only, still recognisable.
 - [ ] `COLORTERM= tcal --bg-style smooth --bg sky --bg-palette truecolor` — full true colour even with `COLORTERM` unset.
 - [ ] `tcal --bg-style smooth --bg seasons --bg-time 2026-12-25` — a smooth Christmas scene; `--events=false` removes it.

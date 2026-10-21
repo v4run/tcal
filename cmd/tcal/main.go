@@ -140,6 +140,7 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 	width := fs.Int("width", 0, "terminal width (print mode only)")
 	withClock := fs.Bool("with-clock", false, "include block clock in print mode")
 	clockStyle := fs.String("clock-style", "block", "block|inline|boxed")
+	look := fs.String("look", "classic", "clock and calendar look: classic|thin (thin falls back to classic when it does not fit)")
 	bgS := fs.String("bg", "none", "ambient background in live mode: none|random|"+strings.Join(tui.Backgrounds(), "|"))
 	bgStyleS := fs.String("bg-style", tui.StyleClassic, "background style: "+strings.Join(tui.Styles(), "|"))
 	bgPaletteS := fs.String("bg-palette", "auto", "background colors: auto|truecolor|ansi")
@@ -190,6 +191,7 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 		"week-start":  func(s string) error { _, err := parseWeekStart(s); return err },
 		"highlight":   func(s string) error { _, err := parseHighlight(s); return err },
 		"clock-style": func(s string) error { _, err := parseClockStyle(s); return err },
+		"look":        func(s string) error { _, err := parseLook(s); return err },
 		"bg":          func(s string) error { _, err := parseBackground(s); return err },
 		"bg-style":    func(s string) error { _, err := parseBgStyle(s); return err },
 		"bg-palette":  func(s string) error { _, err := parseBgPalette(s); return err },
@@ -264,6 +266,9 @@ func configure(args []string, stderr io.Writer, now time.Time) (runConfig, error
 
 	state, opts, err := buildState(*layout, *date, *year, *months, *weekStart, *highlight, *clockStyle, *noColor, *withClock)
 	if err != nil {
+		return runConfig{}, err
+	}
+	if opts.Look, err = parseLook(*look); err != nil {
 		return runConfig{}, err
 	}
 
@@ -388,6 +393,16 @@ func parseClockStyle(s string) (render.ClockStyle, error) {
 		return render.ClockBoxed, nil
 	}
 	return 0, fmt.Errorf("unknown --clock-style %q (expected block|inline|boxed)", s)
+}
+
+func parseLook(s string) (render.Look, error) {
+	switch strings.ToLower(s) {
+	case "classic":
+		return render.LookClassic, nil
+	case "thin":
+		return render.LookThin, nil
+	}
+	return 0, fmt.Errorf("unknown --look %q (expected classic|thin)", s)
 }
 
 func parseBackground(s string) (string, error) {

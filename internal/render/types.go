@@ -19,6 +19,17 @@ const (
 	ClockBoxed
 )
 
+// Look selects how the clock and calendar are drawn.
+type Look int
+
+const (
+	// LookClassic is the original look: block clock, one-line day numbers.
+	LookClassic Look = iota
+	// LookThin draws the clock and day numbers 3 rows tall in thin lines.
+	// Frame falls back to classic when the thin block does not fit.
+	LookThin
+)
+
 // State is the input to Frame.
 type State struct {
 	Anchor time.Time
@@ -37,4 +48,5 @@ type Options struct {
 	Highlight  HighlightMask
 	ClockStyle ClockStyle
 	WithClock  bool
+	Look       Look
 }

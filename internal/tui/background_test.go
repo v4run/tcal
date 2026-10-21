@@ -204,6 +204,34 @@ func TestAllBackgrounds_NeverTouchCalendar(t *testing.T) {
 	}
 }
 
+// Every background, in both styles, leaves the thin look's padded box
+// intact, for one month and for three side by side.
+func TestAllBackgrounds_NeverTouchThinCalendar(t *testing.T) {
+	const w, h = 160, 50
+	for _, months := range []int{1, 3} {
+		for _, style := range Styles() {
+			for _, name := range Backgrounds() {
+				m := runnerModel(w, h)
+				m.opts.Look = render.LookThin
+				m.state.Months = months
+				frame := render.Frame(m.state, m.opts)
+				if !strings.Contains(frame, "┏") {
+					t.Fatal("thin look did not render")
+				}
+				plain := runeGrid(frame)
+				m = m.WithBackground(name, BackgroundOptions{Style: style})
+				for i := 0; i < 120; i++ {
+					next, _ := m.Update(bgTickMsg(time.Time{}))
+					m = next.(Model)
+					if i%20 == 0 {
+						assertCalendarIntact(t, fmt.Sprintf("%s/%s months %d tick %d", style, name, months, i), plain, runeGrid(m.View()))
+					}
+				}
+			}
+		}
+	}
+}
+
 // Every event with art, shown in seasons, leaves the calendar's padded box
 // intact.
 func TestAllEvents_NeverTouchCalendar(t *testing.T) {

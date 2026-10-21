@@ -2,7 +2,9 @@ package render
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/v4run/tcal/internal/calendar"
 )
 
@@ -15,9 +17,12 @@ func defaultMonths(layout Layout) int {
 	}
 }
 
-func layoutStart(layout Layout, anchorYear int, anchorMonth int) (int, int) {
+func layoutStart(layout Layout, months, anchorYear, anchorMonth int) (int, int) {
 	if layout == LayoutGrid {
 		return anchorYear, 1
+	}
+	if months == 1 {
+		return anchorYear, anchorMonth
 	}
 	// horizontal: anchor - 1 month
 	y, m := anchorYear, anchorMonth-1
@@ -29,7 +34,12 @@ func layoutStart(layout Layout, anchorYear int, anchorMonth int) (int, int) {
 }
 
 func minWidthFor(layout Layout, months int) int {
-	const grid = 20
+	return blockWidth(layout, months, 20)
+}
+
+// blockWidth is the width of the months laid out with each month grid
+// cols wide.
+func blockWidth(layout Layout, months, grid int) int {
 	const gutter = 2
 	switch layout {
 	case LayoutHorizontal:
@@ -49,9 +59,16 @@ func Frame(state State, opts Options) string {
 		months = defaultMonths(state.Layout)
 	}
 
-	y, m := layoutStart(state.Layout, state.Anchor.Year(), int(state.Anchor.Month()))
+	y, m := layoutStart(state.Layout, months, state.Anchor.Year(), int(state.Anchor.Month()))
 	startTime := state.Anchor.AddDate(y-state.Anchor.Year(), m-int(state.Anchor.Month()), 0)
 	monthData := calendar.BuildMonths(startTime, months, opts.WeekStart)
+
+	if opts.Look == LookThin {
+		if out, ok := thinFrame(state, opts, months, monthData); ok {
+			return out
+		}
+		opts.Look = LookClassic
+	}
 
 	body := RenderLayout(state.Layout, monthData, state.Today, opts)
 
@@ -78,4 +95,34 @@ func Frame(state State, opts Options) string {
 		width = min
 	}
 	return Fit(block, width, state.Height)
+}
+
+// thinFrame renders the thin look. It reports false when the block would
+// not fit the screen, so the caller can fall back to classic.
+func thinFrame(state State, opts Options, months int, monthData []calendar.Month) (string, bool) {
+	header := state.Now.Format("Mon, 02 Jan 2006 15:04")
+	if opts.WithClock {
+		header = RenderThinClock(state.Now, opts.Color)
+	}
+	body := RenderLayout(state.Layout, monthData, state.Today, opts)
+	// Centre the header over the months; Fit centres the block as a whole.
+	bw := lipgloss.Width(body)
+	hw := lipgloss.Width(header)
+	lines := strings.Split(header, "\n")
+	for i, l := range lines {
+		lines[i] = strings.Repeat(" ", max(0, (bw-hw)/2)) + l
+	}
+	block := strings.Join(lines, "\n") + "\n\n" + body
+
+	width := state.Width
+	if width <= 0 {
+		width = blockWidth(state.Layout, months, thinMonthWidth)
+	}
+	if lipgloss.Width(block) > width {
+		return "", false
+	}
+	if state.Height > 0 && lipgloss.Height(block) > state.Height {
+		return "", false
+	}
+	return Fit(block, width, state.Height), true
 }
