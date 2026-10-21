@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"github.com/v4run/tcal/internal/smooth/trees"
 	"maps"
 	"math/rand/v2"
 	"slices"
@@ -109,6 +110,9 @@ var backgrounds = map[string]func(w, h int, rng *rand.Rand, o BackgroundOptions)
 	"harbor":    func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return harbor.New(w, h, rng) },
 	"train":     func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return train.New(w, h, rng) },
 	"ants":      func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return ants.New(w, h, rng) },
+	// trees has no 16-colour version: classic draws the smooth scene with
+	// the nearest palette colours.
+	"trees": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return trees.New(w, h, rng) },
 }
 
 // Random is the background name that picks one of Backgrounds at startup.
