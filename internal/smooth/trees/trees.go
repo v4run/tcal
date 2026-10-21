@@ -160,11 +160,14 @@ type Scene struct {
 	seeds  [2]uint64 // tree shapes, fixed per side across re-layouts
 	trees  []tree
 	leaves []leaf
-	carpet []leaf  // leaves already on the ground; they stay
-	gustIn float64 // seconds until the next gust
-	gustT  float64 // seconds into the current gust, or -1
-	bird   *bird   // nil until there is somewhere to perch
-	canvas dots.Canvas
+	carpet []leaf // leaves already on the ground; they stay
+	// birdCells are the cells the bird is in while a frame is drawn;
+	// nothing else draws there, so leaves never hide it.
+	birdCells map[[2]int]bool
+	gustIn    float64 // seconds until the next gust
+	gustT     float64 // seconds into the current gust, or -1
+	bird      *bird   // nil until there is somewhere to perch
+	canvas    dots.Canvas
 }
 
 // New returns a w×h scene that draws randomness from rng.
@@ -479,6 +482,9 @@ func (s *Scene) dot(x, y float64, col scene.RGB) {
 	if y < 0 || x < 0 {
 		return
 	}
+	if s.birdCells[cellOf(pt{x, y})] {
+		return // the bird's cells hold only the bird
+	}
 	s.canvas.Dot(x/2, y/4, col)
 }
 
@@ -510,6 +516,17 @@ func hash(a, b, c int) float64 {
 
 func (s *Scene) render() {
 	s.canvas.Clear()
+	bird := s.birdDots()
+	s.birdCells = map[[2]int]bool{}
+	for _, p := range bird {
+		s.birdCells[cellOf(p)] = true
+	}
+	defer func() {
+		s.birdCells = nil
+		for _, p := range bird {
+			s.dot(p.x, p.y, birdCol)
+		}
+	}()
 	if s.w == 0 || s.h == 0 {
 		return
 	}
@@ -518,7 +535,8 @@ func (s *Scene) render() {
 	ground := float64(s.h*4 - 2)
 
 	for x := range s.w * 2 {
-		s.dot(float64(x), ground+1, scale(lk.ground, 0.8))
+		// Straight to the canvas: the ground runs under the bird's feet.
+		s.canvas.Dot(float64(x)/2, (ground+1)/4, scale(lk.ground, 0.8))
 	}
 
 	for _, t := range s.trees {
@@ -575,7 +593,6 @@ func (s *Scene) render() {
 		s.dot(l.x+1, l.y, l.col)
 	}
 	s.drawPark(lk, ground)
-	s.drawBird(lk)
 
 	for _, l := range s.leaves {
 		col := l.col

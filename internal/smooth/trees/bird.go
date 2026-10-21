@@ -280,12 +280,12 @@ func sign(v float64) float64 {
 	return 1
 }
 
-// drawBird draws the bird perched (pecking on the ground now and then) or
-// flying with its wings beating.
-func (s *Scene) drawBird(_ look) {
+// birdDots returns the dots of the bird: perched (pecking on the ground
+// now and then) or flying with its wings beating.
+func (s *Scene) birdDots() []pt {
 	b := s.bird
 	if b == nil {
-		return
+		return nil
 	}
 	d := b.dir
 	if len(b.path) > 0 {
@@ -293,23 +293,27 @@ func (s *Scene) drawBird(_ look) {
 		if math.Sin(b.flap*14) < 0 {
 			wing = 1
 		}
-		s.dot(b.x, b.y-1, birdCol)
-		s.dot(b.x-1, b.y-1+wing, birdCol)
-		s.dot(b.x+1, b.y-1+wing, birdCol)
-		s.dot(b.x-2, b.y-1+wing*0.5, birdCol)
-		s.dot(b.x+2, b.y-1+wing*0.5, birdCol)
-		return
+		return []pt{
+			{b.x, b.y - 1},
+			{b.x - 1, b.y - 1 + wing}, {b.x + 1, b.y - 1 + wing},
+			{b.x - 2, b.y - 1 + wing*0.5}, {b.x + 2, b.y - 1 + wing*0.5},
+		}
 	}
 	// Feet at (x, y): legs, a body row, the head up front and the tail
 	// behind; pecking puts the head down.
-	s.dot(b.x, b.y, birdCol)
-	for dx := -1.0; dx <= 1; dx++ {
-		s.dot(b.x+dx*d, b.y-1, birdCol)
-	}
-	s.dot(b.x-2*d, b.y-2, birdCol)
+	head := pt{b.x + d, b.y - 2}
 	if b.peck > 0 {
-		s.dot(b.x+2*d, b.y, birdCol)
-	} else {
-		s.dot(b.x+d, b.y-2, birdCol)
+		head = pt{b.x + 2*d, b.y}
 	}
+	return []pt{
+		{b.x, b.y},
+		{b.x - d, b.y - 1}, {b.x, b.y - 1}, {b.x + d, b.y - 1},
+		{b.x - 2*d, b.y - 2},
+		head,
+	}
+}
+
+// cellOf is the screen cell holding dot p.
+func cellOf(p pt) [2]int {
+	return [2]int{int(math.Floor(p.x / 2)), int(math.Floor(p.y / 4))}
 }
