@@ -54,7 +54,7 @@ tcal --print | lpr
 | `--with-clock`   | off            | include block clock in print mode          |
 | `--clock-style`  | `block`        | `block \| inline \| boxed`                 |
 | `--look`         | `classic`      | `classic \| thin`; see [Thin look](#thin-look) |
-| `--small-neighbors` | `true`      | thin look: when three thin months don't fit, show this month between small neighbours; `false` shows it alone |
+| `--neighbors`    | `auto`         | thin look, the months either side: `auto` (big if they fit, else small) \| `small` (always small) \| `big` (big if they fit, else hidden) |
 | `--bg`           | `none`         | `none`, `random`, or a name from [Backgrounds](#backgrounds) (live mode only) |
 | `--bg-behind`    | `0`            | background opacity behind the calendar and clock, `0`–`100`; `0` keeps it clear. Every step shows in true colour; other palettes are only off or faint |
 | `--bg-color`     | `true`         | tint the background; `false` draws it dim in the foreground color |
@@ -120,11 +120,11 @@ A thin month is 49 columns wide and 22 rows tall. When the calendar doesn't fit 
 | Step | Shown | Needs about |
 |------|-------|-------------|
 | 1 | all the months in thin digits | 151 columns for three |
-| 2 | this month in thin digits, the months either side small and dim (`--small-neighbors=false` skips this) | 95 columns |
+| 2 | this month in thin digits, the months either side small and dim | 95 columns |
 | 3 | this month alone in thin digits | 50 columns |
 | 4 | the classic look, then fewer months (5 → 3 → 1) | 64, then 20 columns |
 
-Before each step down, a tall clock shrinks to one line, so one thin month fits an 80×24 terminal. The months you can't see are always a keypress away with `h`/`l`. The grid layout always uses the classic look. `--clock-style` is ignored in the thin look. Set `look = "thin"` in the [config file](#config-file) to make it your default.
+`--neighbors small` always uses step 2 instead of step 1; `--neighbors big` never uses step 2. Before each step down, a tall clock shrinks to one line, so one thin month fits an 80×24 terminal. The months you can't see are always a keypress away with `h`/`l`. The grid layout always uses the classic look. `--clock-style` is ignored in the thin look. Set `look = "thin"` in the [config file](#config-file) to make it your default.
 
 ## Smooth style
 
@@ -198,7 +198,7 @@ week-start  = "mon"         # sun | mon
 highlight   = "combined"    # combined | reverse | bracket | color | none
 clock-style = "block"       # block | inline | boxed
 look        = "classic"     # classic | thin
-small-neighbors = true      # thin look: small months either side when three big ones don't fit
+neighbors   = "auto"        # auto | small | big — thin look, the months either side
 with-clock  = true
 no-color    = false
 bg          = "random"      # none | random | <background name>

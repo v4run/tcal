@@ -64,13 +64,27 @@ func TestFrame_HorizontalThinStepsDown(t *testing.T) {
 	}
 }
 
-func TestFrame_NoSmallNeighborsSkipsTheMiddleStep(t *testing.T) {
-	o := Options{WeekStart: time.Sunday, Highlight: HighlightAll, WithClock: true, Look: LookThin, NoSmallNeighbors: true}
-	if got := shapeOf(Frame(horizState(120, 36), o)); got != (shape{"Oct", true, false, false}) {
-		t.Errorf("got %+v, want thin October alone", got)
-	}
-	if got := shapeOf(Frame(horizState(160, 45), o)); got.months != "Sep Oct Nov" || got.small {
-		t.Errorf("got %+v, want three thin months when they fit", got)
+func TestFrame_Neighbors(t *testing.T) {
+	big3 := shape{"Sep Oct Nov", true, false, false}
+	small := shape{"Sep Oct Nov", true, false, true}
+	alone := shape{"Oct", true, false, false}
+	for _, tc := range []struct {
+		n    Neighbors
+		w, h int
+		want shape
+	}{
+		{NeighborsAuto, 160, 45, big3},
+		{NeighborsAuto, 120, 36, small},
+		{NeighborsSmall, 160, 45, small},
+		{NeighborsSmall, 120, 36, small},
+		{NeighborsSmall, 70, 36, alone},
+		{NeighborsBig, 160, 45, big3},
+		{NeighborsBig, 120, 36, alone},
+	} {
+		o := Options{WeekStart: time.Sunday, Highlight: HighlightAll, WithClock: true, Look: LookThin, Neighbors: tc.n}
+		if got := shapeOf(Frame(horizState(tc.w, tc.h), o)); got != tc.want {
+			t.Errorf("neighbors %d at %dx%d: got %+v, want %+v", tc.n, tc.w, tc.h, got, tc.want)
+		}
 	}
 }
 

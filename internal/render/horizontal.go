@@ -16,9 +16,10 @@ const neighbourGutter = "   "
 // stepping down until the block fits the screen. Each step drops the least
 // important thing first:
 //
-//  1. thin look only: the months in thin digits; then, unless
-//     opts.NoSmallNeighbors, the current month in thin digits between its
-//     small, dim neighbours; then the current month alone in thin digits;
+//  1. thin look only: the months in thin digits (not with NeighborsSmall);
+//     then the current month in thin digits between its small, dim
+//     neighbours (not with NeighborsBig); then the current month alone in
+//     thin digits;
 //  2. the months in the classic look, then fewer of them (odd counts, so
 //     the current month stays in the middle), down to one.
 //
@@ -29,10 +30,12 @@ func horizontalBlock(state State, opts Options, months int, data []calendar.Mont
 	type step func(compact bool) string
 	var steps []step
 	if opts.Look == LookThin {
-		steps = append(steps, func(c bool) string {
-			return thinBlock(state, opts, c, RenderLayout(LayoutHorizontal, data, state.Today, opts))
-		})
-		if months >= 3 && !opts.NoSmallNeighbors {
+		if months < 3 || opts.Neighbors != NeighborsSmall {
+			steps = append(steps, func(c bool) string {
+				return thinBlock(state, opts, c, RenderLayout(LayoutHorizontal, data, state.Today, opts))
+			})
+		}
+		if months >= 3 && opts.Neighbors != NeighborsBig {
 			around := centred(state, 3, opts.WeekStart)
 			steps = append(steps, func(c bool) string { return thinBlock(state, opts, c, focusBody(around, state.Today, opts)) })
 		}

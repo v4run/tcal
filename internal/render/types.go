@@ -49,7 +49,20 @@ type Options struct {
 	ClockStyle ClockStyle
 	WithClock  bool
 	Look       Look
-	// NoSmallNeighbors skips the thin look's middle step, the current
-	// month between small neighbours, when three thin months don't fit.
-	NoSmallNeighbors bool
+	Neighbors  Neighbors
 }
+
+// Neighbors selects how the thin look shows the months either side of the
+// current one in the horizontal layout.
+type Neighbors int
+
+const (
+	// NeighborsAuto shows them big when they fit, else small, else not at
+	// all.
+	NeighborsAuto Neighbors = iota
+	// NeighborsSmall always shows them small beside the big current month,
+	// or not at all when that doesn't fit.
+	NeighborsSmall
+	// NeighborsBig shows them big when they fit, else not at all.
+	NeighborsBig
+)
