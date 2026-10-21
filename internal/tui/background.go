@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"github.com/v4run/tcal/internal/smooth/trees"
 	"maps"
 	"math/rand/v2"
 	"slices"
@@ -32,6 +31,8 @@ import (
 	"github.com/v4run/tcal/internal/scenes/sky"
 	"github.com/v4run/tcal/internal/scenes/starfield"
 	"github.com/v4run/tcal/internal/scenes/train"
+	"github.com/v4run/tcal/internal/smooth/coast"
+	"github.com/v4run/tcal/internal/smooth/trees"
 )
 
 const (
@@ -110,9 +111,10 @@ var backgrounds = map[string]func(w, h int, rng *rand.Rand, o BackgroundOptions)
 	"harbor":    func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return harbor.New(w, h, rng) },
 	"train":     func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return train.New(w, h, rng) },
 	"ants":      func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return ants.New(w, h, rng) },
-	// trees has no 16-colour version: classic draws the smooth scene with
-	// the nearest palette colours.
+	// trees and coast have no 16-colour versions: classic draws the
+	// smooth scenes with the nearest palette colours.
 	"trees": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return trees.New(w, h, rng) },
+	"coast": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return coast.New(w, h, rng) },
 }
 
 // Random is the background name that picks one of Backgrounds at startup.
