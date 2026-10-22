@@ -133,3 +133,45 @@ func (f *fireworks) draw(c *dots.Canvas, ox, oy float64) {
 		}
 	}
 }
+
+// Fireworks is the New Year bursts for a scene to host in an area of its
+// own, in cell units.
+type Fireworks struct{ fw *fireworks }
+
+// NewFireworks returns New Year fireworks with bursts at most maxR rows in
+// radius.
+func NewFireworks(rng *rand.Rand, maxR float64) *Fireworks {
+	return &Fireworks{newFireworks(rng, maxR, nyCols...)}
+}
+
+// Resize sets the w×h area the bursts go off in, dropping every burst.
+func (f *Fireworks) Resize(w, h int) { f.fw.resize(w, h) }
+
+// Step ages the bursts by dt, launching new ones at rate per second.
+func (f *Fireworks) Step(dt time.Duration, rate float64) {
+	f.fw.step(max(dt, 0), chance(rate, max(dt, 0)))
+}
+
+// Draw paints the bursts into c with the area's top-left at (ox, oy).
+func (f *Fireworks) Draw(c *dots.Canvas, ox, oy float64) { f.fw.draw(c, ox, oy) }
+
+// Glow is a burst's light for a scene to reflect: its centre column and
+// half-width in cells, its colour, and its brightness from 1 down to 0.
+type Glow struct {
+	X, R float64
+	Col  scene.RGB
+	K    float64
+}
+
+// Glows lists the light of every burst still in the sky.
+func (f *Fireworks) Glows() []Glow {
+	out := make([]Glow, 0, len(f.fw.bursts))
+	for _, b := range f.fw.bursts {
+		k := 1.0
+		if b.age > f.fw.grow && f.fw.fade > 0 {
+			k = 1 - float64(b.age-f.fw.grow)/float64(f.fw.fade)
+		}
+		out = append(out, Glow{X: b.x, R: 2 * b.r, Col: b.col, K: max(k, 0)})
+	}
+	return out
+}

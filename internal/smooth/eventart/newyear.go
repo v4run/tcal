@@ -69,19 +69,26 @@ func (n *newYear) render() {
 // SetTime sets the launch rate from now's distance to the nearest midnight:
 // peak within half an hour, easing down to a trickle two hours out.
 func (n *newYear) SetTime(now time.Time, _ events.Occurrence) {
+	n.rate = NewYearRate(now)
+	n.render()
+}
+
+// NewYearRate is the New Year fireworks' launch rate per second at now:
+// peak within half an hour of midnight, easing down to a trickle two hours
+// out.
+func NewYearRate(now time.Time) float64 {
 	h, m, s := now.Clock()
 	d := time.Duration(h)*time.Hour + time.Duration(m)*time.Minute + time.Duration(s)*time.Second
 	d = min(d, 24*time.Hour-d)
 	switch {
 	case d <= nyPeak:
-		n.rate = nyPeakRate
+		return nyPeakRate
 	case d >= nyCalm:
-		n.rate = nyBaseRate
+		return nyBaseRate
 	default:
 		f := float64(d-nyPeak) / float64(nyCalm-nyPeak)
-		n.rate = nyPeakRate + f*(nyBaseRate-nyPeakRate)
+		return nyPeakRate + f*(nyBaseRate-nyPeakRate)
 	}
-	n.render()
 }
 
 // Bounds is a band across the top edge.

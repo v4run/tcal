@@ -20,6 +20,8 @@ import (
 	"github.com/v4run/tcal/internal/scenes/lava"
 	"github.com/v4run/tcal/internal/scenes/rain"
 	"github.com/v4run/tcal/internal/scenes/seasons"
+	"github.com/v4run/tcal/internal/smooth/coast"
+	"github.com/v4run/tcal/internal/smooth/trees"
 )
 
 func fullLife(w, h int) scene.Scene {
@@ -313,6 +315,33 @@ func TestRandom_EventDayPicksSeasons(t *testing.T) {
 		if bg, ok := pick(t, o, xmas).(*seasons.Scene); !ok {
 			t.Fatalf("picked %T on an event day, want seasons", bg)
 		}
+	}
+}
+
+func TestRandom_EventDayPicksAmongCelebrants(t *testing.T) {
+	newYear := time.Date(2026, time.December, 31, 23, 30, 0, 0, time.Local)
+	xmas := time.Date(2026, time.December, 25, 12, 0, 0, 0, time.Local)
+	o := BackgroundOptions{Events: true, RandomPool: []string{"rain", "trees", "coast"}}
+	for range 50 {
+		if bg, ok := pick(t, o, xmas).(*trees.Scene); !ok {
+			t.Fatalf("Christmas: picked %T, want trees", bg)
+		}
+		if bg, ok := pick(t, o, newYear).(*coast.Scene); !ok {
+			t.Fatalf("New Year: picked %T, want coast", bg)
+		}
+	}
+	// coast has nothing for Diwali, so the day falls back to the pool.
+	diwali := time.Date(2026, time.November, 8, 20, 0, 0, 0, time.Local)
+	if occ, ok := events.Active(diwali, nil); !ok || occ.Kind != events.Diwali {
+		t.Fatalf("%v is not Diwali: %v %v", diwali, occ.Kind, ok)
+	}
+	o.RandomPool = []string{"rain", "coast"}
+	seen := map[string]bool{}
+	for range 100 {
+		seen[fmt.Sprintf("%T", pick(t, o, diwali))] = true
+	}
+	if len(seen) != 2 {
+		t.Errorf("Diwali with no celebrant: picked %v, want both pool members", seen)
 	}
 }
 

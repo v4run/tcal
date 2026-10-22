@@ -113,8 +113,28 @@ var backgrounds = map[string]func(w, h int, rng *rand.Rand, o BackgroundOptions)
 	"ants":      func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return ants.New(w, h, rng) },
 	// trees and coast have no 16-colour versions: classic draws the
 	// smooth scenes with the nearest palette colours.
-	"trees": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return trees.New(w, h, rng) },
-	"coast": func(w, h int, rng *rand.Rand, _ BackgroundOptions) scene.Scene { return coast.New(w, h, rng) },
+	"trees": func(w, h int, rng *rand.Rand, o BackgroundOptions) scene.Scene {
+		s := trees.New(w, h, rng)
+		if o.Events {
+			s.EnableEvents(o.Birthday)
+		}
+		return s
+	},
+	"coast": func(w, h int, rng *rand.Rand, o BackgroundOptions) scene.Scene {
+		s := coast.New(w, h, rng)
+		if o.Events {
+			s.EnableEvents(o.Birthday)
+		}
+		return s
+	},
+}
+
+// celebrates says, per background, which events it marks. seasons marks
+// every event: it reports it even without art for it.
+var celebrates = map[string]func(events.Kind) bool{
+	"seasons": func(events.Kind) bool { return true },
+	"trees":   trees.Celebrates,
+	"coast":   coast.Celebrates,
 }
 
 // Random is the background name that picks one of Backgrounds at startup.
@@ -128,9 +148,9 @@ func Backgrounds() []string {
 
 // newScene builds the named background in style o.Style; a name with no
 // smooth constructor uses its classic one. For Random it draws uniformly from
-// o.RandomPool (all backgrounds when nil), except that seasons is chosen
-// whenever events are on, seasons is in the pool and an event is active at
-// bgNow.
+// o.RandomPool (all backgrounds when nil), except that while events are on
+// and an event is active at bgNow it draws from the pool's backgrounds that
+// celebrate it (see celebrates), if any.
 func newScene(name string, w, h int, o BackgroundOptions, bgNow time.Time) scene.Scene {
 	seed := uint64(time.Now().UnixNano())
 	rng := rand.New(rand.NewPCG(seed, seed>>32))
@@ -143,9 +163,16 @@ func newScene(name string, w, h int, o BackgroundOptions, bgNow time.Time) scene
 			return nil
 		}
 		name = pool[rng.IntN(len(pool))]
-		if o.Events && slices.Contains(pool, "seasons") {
-			if _, ok := events.Active(bgNow, o.Birthday); ok {
-				name = "seasons"
+		// On an event day, pick among the backgrounds that celebrate it.
+		if occ, ok := events.Active(bgNow, o.Birthday); o.Events && ok {
+			var hosts []string
+			for _, n := range pool {
+				if celebrates[n] != nil && celebrates[n](occ.Kind) {
+					hosts = append(hosts, n)
+				}
+			}
+			if len(hosts) > 0 {
+				name = hosts[rng.IntN(len(hosts))]
 			}
 		}
 	}

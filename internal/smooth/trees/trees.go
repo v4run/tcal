@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/v4run/tcal/internal/dots"
+	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/palette"
 	"github.com/v4run/tcal/internal/scene"
 	"github.com/v4run/tcal/internal/smooth/seasons"
@@ -182,6 +183,13 @@ type Scene struct {
 	gustT     float64 // seconds into the current gust, or -1
 	bird      *bird   // nil until there is somewhere to perch
 	canvas    dots.Canvas
+
+	// Holiday events: whether they are on, the birthday, and the active
+	// event that this scene celebrates, if any.
+	events   bool
+	birthday *events.MonthDay
+	event    events.Kind
+	hasEvent bool
 }
 
 // New returns a w×h scene that draws randomness from rng.
@@ -193,11 +201,26 @@ func New(w, h int, rng *rand.Rand) *Scene {
 	return s
 }
 
-// SetTime switches to the season of the shown month.
-func (s *Scene) SetTime(_, shown time.Time) {
+// SetTime switches to the season of the shown month and, with events
+// enabled, to the holiday active at now.
+func (s *Scene) SetTime(now, shown time.Time) {
+	changed := false
 	if se := seasons.SeasonOf(shown.Month()); se != s.season {
 		s.season = se
 		s.leaves, s.flakes = nil, nil
+		changed = true
+	}
+	if s.events {
+		occ, ok := events.Active(now, s.birthday)
+		if ok && !Celebrates(occ.Kind) {
+			ok = false
+		}
+		if ok != s.hasEvent || occ.Kind != s.event {
+			s.event, s.hasEvent = occ.Kind, ok
+			changed = true
+		}
+	}
+	if changed {
 		s.spread()
 		s.render()
 	}
@@ -250,7 +273,7 @@ var flakeCol = scene.RGB{R: 205, G: 210, B: 222}
 // stepSnow keeps the winter snowfall going: flakes fall and sway, drift in
 // gusts, and start again at the top once they reach the ground.
 func (s *Scene) stepSnow(sec float64) {
-	if !looks[s.season].snow || s.w == 0 || s.h == 0 {
+	if !s.look().snow || s.w == 0 || s.h == 0 {
 		s.flakes = nil
 		return
 	}
@@ -285,7 +308,7 @@ func (s *Scene) stepSnow(sec float64) {
 // always give the same carpet.
 func (s *Scene) spread() {
 	s.carpet = nil
-	lk := looks[s.season]
+	lk := s.look()
 	if lk.carpet == 0 {
 		return
 	}
@@ -396,7 +419,7 @@ func (s *Scene) Step(dt time.Duration) {
 	s.stepBird(sec)
 	s.stepSnow(sec)
 
-	lk := looks[s.season]
+	lk := s.look()
 	wind := s.wind()
 	for i := range s.trees {
 		// Gusts shake more loose.
@@ -530,7 +553,7 @@ func (s *Scene) drawPark(lk look, ground float64) {
 	// The lantern: an iron cap over a warm glass.
 	s.line(lx-2, top, lx+2, top, 1, ironCol)
 	for y := top + 1; y <= top+3; y++ {
-		s.line(lx-1, y, lx+1, y, 1, scale(glowCol, s.flicker()))
+		s.line(lx-1, y, lx+1, y, 1, scale(s.glow(), s.flicker()))
 	}
 	if lk.bare {
 		s.line(lx-2, top-1, lx+2, top-1, 1, snowCol)
@@ -599,8 +622,7 @@ func (s *Scene) render() {
 	if s.w == 0 || s.h == 0 {
 		return
 	}
-	lk := looks[s.season]
-	wind := s.wind()
+	lk := s.look()
 	ground := float64(s.h*4 - 2)
 
 	for x := range s.w * 2 {
@@ -609,16 +631,7 @@ func (s *Scene) render() {
 	}
 
 	for _, t := range s.trees {
-		// Sway grows with height, more in a gust.
-		sway := (0.8 + 1.5*math.Abs(wind)/gustPush) * math.Sin(s.t*1.1+t.phase)
-		sway += 2 * wind / gustPush
-		bend := func(y float64) float64 {
-			u := y / t.height
-			return sway * u * u
-		}
-		at := func(x, y float64) (float64, float64) {
-			return t.baseX + x + bend(y), ground - y
-		}
+		at := s.placer(t, ground)
 
 		for _, l := range t.limbs {
 			ax, ay := at(l.x0, l.y0)
@@ -629,6 +642,7 @@ func (s *Scene) render() {
 				s.line(ax, ay-1, bx, by-1, 1, snowCol)
 			}
 		}
+		s.drawLights(t, at)
 		if lk.bare {
 			continue
 		}
@@ -665,6 +679,7 @@ func (s *Scene) render() {
 		s.dot(l.x+1, l.y, l.col)
 	}
 	s.drawPark(lk, ground)
+	s.drawEvent(ground)
 
 	for _, l := range s.leaves {
 		col := l.col

@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/v4run/tcal/internal/dots"
+	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/palette"
 	"github.com/v4run/tcal/internal/scene"
+	"github.com/v4run/tcal/internal/smooth/eventart"
 )
 
 // Height is the number of rows the strip occupies at the bottom of the
@@ -57,6 +59,7 @@ var (
 	_ scene.Stepper     = (*Scene)(nil)
 	_ scene.TrueColored = (*Scene)(nil)
 	_ scene.Colored     = (*Scene)(nil)
+	_ scene.Clocked     = (*Scene)(nil)
 )
 
 // rock is a rounded outcrop standing on the sea floor.
@@ -97,6 +100,14 @@ type Scene struct {
 	wet      []float64
 	canvas   dots.Canvas
 	shoreCol float64 // dot column where the sand meets the calm sea
+
+	// Holiday events: whether they are on, the birthday, and the New Year
+	// fireworks over the sea while they go off.
+	events   bool
+	birthday *events.MonthDay
+	fw       *eventart.Fireworks
+	fwRate   float64 // launches per second
+	glows    []eventart.Glow
 }
 
 // New returns a w×h scene that draws randomness from rng.
@@ -131,6 +142,9 @@ func (s *Scene) Resize(w, h int) {
 		}
 	}
 	s.canvas.Reset(s.w, Height)
+	if s.fw != nil {
+		s.fw.Resize(s.w, skyRows)
+	}
 	s.render()
 }
 
@@ -153,6 +167,10 @@ func (s *Scene) Step(dt time.Duration) {
 	s.t += sec
 	if s.w < MinWidth {
 		return
+	}
+	if s.fw != nil {
+		s.fw.Step(dt, s.fwRate)
+		s.glows = s.fw.Glows()
 	}
 	W := float64(s.w * 2)
 
@@ -315,7 +333,7 @@ func (s *Scene) render() {
 		if fx >= s.shoreCol-4 {
 			sy := s.surface(fx)
 			if sy < top {
-				s.dot(fx, sy, surfCol)
+				s.dot(fx, sy, s.surfCol(fx))
 				for y := int(sy) + 2; y < min(H, int(top)); y++ {
 					depth := float64(y) - sy
 					if hash(x, y) < 0.16-depth*0.005 {
@@ -370,7 +388,7 @@ func (s *Scene) render() {
 				}
 			}
 			if sy > top {
-				s.dot(x, sy, surfCol)
+				s.dot(x, sy, s.surfCol(x))
 			}
 		}
 	}
@@ -379,4 +397,49 @@ func (s *Scene) render() {
 		k := 1 - d.age/d.life
 		s.dot(d.x, d.y, scale(d.col, 0.4+0.6*k))
 	}
+	if s.fw != nil {
+		s.fw.Draw(&s.canvas, 0, 0)
+	}
+}
+
+// skyRows is the band at the top of the strip, above the sea, where New
+// Year fireworks go off; fwMaxR is their largest radius in rows.
+const (
+	skyRows = 4
+	fwMaxR  = 1.4
+)
+
+// Celebrates reports whether the scene has a way to mark the event.
+func Celebrates(k events.Kind) bool { return k == events.NewYear }
+
+// EnableEvents turns on holiday events, including the birthday if non-nil.
+func (s *Scene) EnableEvents(birthday *events.MonthDay) {
+	s.events, s.birthday = true, birthday
+}
+
+// SetTime starts New Year fireworks over the sea while New Year is the
+// active event at now, busiest around midnight, and stops them after.
+func (s *Scene) SetTime(now, _ time.Time) {
+	occ, ok := events.Active(now, s.birthday)
+	if !s.events || !ok || !Celebrates(occ.Kind) {
+		s.fw, s.glows = nil, nil
+		return
+	}
+	if s.fw == nil {
+		s.fw = eventart.NewFireworks(rand.New(rand.NewPCG(s.rng.Uint64(), s.rng.Uint64())), fwMaxR)
+		s.fw.Resize(s.w, skyRows)
+	}
+	s.fwRate = eventart.NewYearRate(now)
+}
+
+// surfCol is the sea surface's colour at dot column x, catching the light
+// of any burst above it.
+func (s *Scene) surfCol(x float64) scene.RGB {
+	col := surfCol
+	for _, g := range s.glows {
+		if d := math.Abs(x/2-g.X) / g.R; d < 1 {
+			col = mix(col, g.Col, g.K*(1-d)*0.7)
+		}
+	}
+	return col
 }
