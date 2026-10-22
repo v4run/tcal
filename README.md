@@ -174,7 +174,23 @@ tcal --bg seasons --bg-time 2026-10-31      # Halloween
 tcal --bg seasons --bg-time 2026-12-31T23:30   # New Year, near midnight
 ```
 
-If two events overlap, your birthday wins; otherwise the one with the shorter window does. With `--bg random`, a day with an active event picks `seasons` (if it is in the random pool) so the event is seen. Some scenes need room beside the calendar (roughly 100+ columns), so on a narrow terminal the background can be `seasons` with no visible scene. To avoid that, remove `seasons` from `[random] backgrounds`, or set `events = false`. Turn events off with `--events=false` or `events = false` in the config; `seasons` then behaves as it always did.
+`trees` and `coast` celebrate some events in their own way instead:
+
+| Background | Event | Scene |
+|------------|-------|-------|
+| `trees` | Diwali | diyas with flickering flames along the ground and on the bench; the lamp glows warmer |
+| `trees` | Onam | a pookalam on the ground beside the bench; flower petals fall and lie in place of leaves |
+| `trees` | Christmas | strands of twinkling lights hanging from the crowns, a string of lights swagged from tree to lamp post to tree below the calendar, and a star atop each tree |
+| `trees` | New Year | fireworks in the sky above the calendar (or above each tree), with the Christmas lights still up |
+| `trees` | Birthday | balloons tied to the bench and a cake with a candle on the seat |
+| `coast` | New Year | fireworks over the sea, reflected in the water, busiest around midnight |
+
+```
+tcal --bg trees --bg-style smooth --bg-time 2026-11-08    # Diwali
+tcal --bg coast --bg-style smooth --bg-time 2026-12-31T23:50   # New Year
+```
+
+If two events overlap, your birthday wins; otherwise the one with the shorter window does. With `--bg random`, a day with an active event picks among the backgrounds in the random pool that celebrate it — `seasons` for any event, `trees` and `coast` for theirs — so the event is seen. Some scenes need room beside the calendar (roughly 100+ columns), so on a narrow terminal the background can be `seasons` with no visible scene. To avoid that, remove `seasons` from `[random] backgrounds`, or set `events = false`. Turn events off with `--events=false` or `events = false` in the config; `seasons` then behaves as it always did.
 
 Fixed-date events are computed. Moving dates (Sankranti, Lunar New Year, Holi, Vishu, Eid, Onam, Diwali) come from a lookup table of published calendars covering 2026-2040, with a few documented gaps: Vishu 2032-2040, Onam 2031-2040, Eid 2037 and Diwali 2037. In a gap year that event does not show; a missing date is preferred to a wrong one. Sources are cited in `internal/events/dates.go`.
 
