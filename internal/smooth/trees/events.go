@@ -103,60 +103,56 @@ func (s *Scene) twinkle(i int) float64 {
 	return k
 }
 
-// Light ropes: drapes at these fractions of a tree's height, each sagging
-// in two swags across the crown, with a bulb every bulbGap dots.
-var ropeHeights = []float64{0.5, 0.65, 0.8}
+// Light strands hang from the crown's lowest twigs: strandCount per tree,
+// each strandLen dots long with a bulb every bulbGap dots.
+const (
+	strandCount = 7
+	strandLen   = 12
+	bulbGap     = 3
+)
 
-const bulbGap = 4
+var wireCol = scene.RGB{R: 95, G: 100, B: 95}
 
-var wireCol = scene.RGB{R: 75, G: 85, B: 75}
+// bulb draws light i at (x, y) as two stacked dots, so its colour fills
+// the cell, or nothing while it is off.
+func (s *Scene) bulb(x, y float64, i int) {
+	if k := s.twinkle(i); k > 0 {
+		col := scale(fairyCols[i%len(fairyCols)], k)
+		s.dot(x, y, col)
+		s.dot(x, y+1, col)
+	}
+}
 
-// drawLights drapes ropes of twinkling lights across t's crown at
+// drawLights hangs strands of twinkling lights from t's lowest twigs at
 // Christmas and New Year, with a star on top at Christmas.
 func (s *Scene) drawLights(t tree, at func(x, y float64) (float64, float64)) {
 	if !s.celebrating(events.Christmas) && !s.celebrating(events.NewYear) {
 		return
 	}
-	for r, f := range ropeHeights {
-		y := t.height * f
-		// The rope hangs from the outermost branches at this height.
-		xl, xr, found := 0.0, 0.0, false
-		for _, l := range t.limbs {
-			lo, hi := min(l.y0, l.y1), max(l.y0, l.y1)
-			if y < lo || y > hi || hi == lo {
-				continue
+	// The lowest twig in each of strandCount slices across the crown.
+	minX, maxX := 0.0, 0.0
+	for _, tp := range t.tips {
+		minX, maxX = min(minX, tp.x), max(maxX, tp.x)
+	}
+	for k := range strandCount {
+		lo, hi := minX+(maxX-minX)*float64(k)/strandCount, minX+(maxX-minX)*float64(k+1)/strandCount
+		var best *tip
+		for i := range t.tips {
+			tp := &t.tips[i]
+			if tp.x >= lo && tp.x <= hi && (best == nil || tp.y < best.y) {
+				best = tp
 			}
-			x := l.x0 + (l.x1-l.x0)*(y-l.y0)/(l.y1-l.y0)
-			if !found {
-				xl, xr, found = x, x, true
-			}
-			xl, xr = min(xl, x), max(xr, x)
 		}
-		if !found || xr-xl < 6 {
+		if best == nil {
 			continue
 		}
-		mid := (xl + xr) / 2
-		bulb := 0
-		for _, sw := range [][2]float64{{xl, mid}, {mid, xr}} {
-			span := sw[1] - sw[0]
-			sag := 1 + span*0.18
-			for d := 0.0; d <= span; d++ {
-				u := d / span
-				x, yy := at(sw[0]+d, y-sag*4*u*(1-u))
-				if int(d)%bulbGap == 0 {
-					i := t.seed*100 + r*40 + bulb
-					bulb++
-					if k := s.twinkle(i); k > 0 {
-						// Two dots, so the bulb's colour fills its cell.
-						col := scale(fairyCols[i%len(fairyCols)], k)
-						s.dot(x, yy, col)
-						s.dot(x, yy+1, col)
-						continue
-					}
-				}
-				if int(d)%2 == 0 {
-					s.dot(x, yy, wireCol)
-				}
+		for d := 0.0; d <= strandLen; d++ {
+			x, y := at(best.x, best.y-d)
+			switch {
+			case int(d)%bulbGap == bulbGap-1:
+				s.bulb(x, y, t.seed*100+k*10+int(d))
+			case int(d)%2 == 0:
+				s.dot(x, y, wireCol)
 			}
 		}
 	}
@@ -173,6 +169,45 @@ func (s *Scene) drawLights(t tree, at func(x, y float64) (float64, float64)) {
 	x, y := at(top.x, top.y+2)
 	for _, d := range [][2]float64{{0, 0}, {-1, 0}, {1, 0}, {0, -1}, {0, 1}} {
 		s.dot(x+d[0], y+d[1], starCol)
+	}
+}
+
+// drawFestoon strings lights across the park below the calendar: from the
+// left tree's trunk to the lamp post, if there is one, to the right tree's,
+// sagging between them. It needs room under the calendar.
+func (s *Scene) drawFestoon(ground float64) {
+	if len(s.trees) < 2 {
+		return
+	}
+	top := 0.0 // highest dot row it may use
+	if s.boxSet && s.box.Y0 != -1 {
+		top = float64((s.box.Y1+1)*4) + 3
+	}
+	y := max(top, ground-26)
+	if ground-y < 10 {
+		return // too little room under the calendar
+	}
+	anchors := []pt{{s.trees[0].baseX + 2, y}}
+	if _, _, _, lx, ltop, lamp := s.park(); lamp && ltop >= y {
+		anchors = append(anchors, pt{lx, ltop + 1})
+	}
+	anchors = append(anchors, pt{s.trees[1].baseX - 2, y})
+	n := 0
+	for i := 0; i+1 < len(anchors); i++ {
+		a, b := anchors[i], anchors[i+1]
+		span := b.x - a.x
+		sag := min(span*0.1, ground-4-max(a.y, b.y))
+		for d := 0.0; d <= span; d++ {
+			u := d / span
+			x, yy := a.x+d, a.y+(b.y-a.y)*u+sag*4*u*(1-u)
+			switch {
+			case int(d)%5 == 2:
+				s.bulb(x, yy, 7000+n)
+				n++
+			case int(d)%2 == 0:
+				s.dot(x, yy, wireCol)
+			}
+		}
 	}
 }
 
@@ -239,6 +274,9 @@ func (s *Scene) drawEvent(ground float64) {
 		s.drawBirthday(ground)
 	case s.celebrating(events.NewYear):
 		s.drawFireworks()
+		s.drawFestoon(ground)
+	case s.celebrating(events.Christmas):
+		s.drawFestoon(ground)
 	}
 }
 
