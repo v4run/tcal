@@ -93,10 +93,10 @@ func (s *Scene) placer(t tree, ground float64) func(x, y float64) (float64, floa
 	}
 }
 
-// twinkle is how bright light i is now, 0 to 1: each light fades in and
-// out on its own slow beat, and a few are off at any moment.
+// twinkle is how bright light i is now, 0 or 0.5 to 1: each light swells
+// and fades on its own slow beat, and a few are off at any moment.
 func (s *Scene) twinkle(i int) float64 {
-	k := 0.55 + 0.45*math.Sin(s.t*(1.3+hash(i, 1, 5))+hash(i, 2, 5)*6.3)
+	k := 0.75 + 0.25*math.Sin(s.t*(1.3+hash(i, 1, 5))+hash(i, 2, 5)*6.3)
 	if hash(i, int(s.t*1.5), 6) < 0.12 {
 		return 0
 	}
@@ -147,7 +147,10 @@ func (s *Scene) drawLights(t tree, at func(x, y float64) (float64, float64)) {
 					i := t.seed*100 + r*40 + bulb
 					bulb++
 					if k := s.twinkle(i); k > 0 {
-						s.dot(x, yy, scale(fairyCols[i%len(fairyCols)], k))
+						// Two dots, so the bulb's colour fills its cell.
+						col := scale(fairyCols[i%len(fairyCols)], k)
+						s.dot(x, yy, col)
+						s.dot(x, yy+1, col)
 						continue
 					}
 				}

@@ -651,8 +651,8 @@ func (s *Scene) render() {
 				s.line(ax, ay-1, bx, by-1, 1, snowCol)
 			}
 		}
-		s.drawLights(t, at)
 		if lk.bare {
+			s.drawLights(t, at)
 			continue
 		}
 		for _, tp := range t.tips {
@@ -678,6 +678,8 @@ func (s *Scene) render() {
 				}
 			}
 		}
+		// Lights go over the leaves.
+		s.drawLights(t, at)
 	}
 
 	for _, f := range s.flakes {
