@@ -323,11 +323,13 @@ func TestRandom_EventDayPicksAmongCelebrants(t *testing.T) {
 	xmas := time.Date(2026, time.December, 25, 12, 0, 0, 0, time.Local)
 	o := BackgroundOptions{Events: true, RandomPool: []string{"rain", "trees", "coast"}}
 	for range 50 {
-		if bg, ok := pick(t, o, xmas).(*trees.Scene); !ok {
+		if bg := pick(t, o, xmas); fmt.Sprintf("%T", bg) != "*trees.Scene" {
 			t.Fatalf("Christmas: picked %T, want trees", bg)
 		}
-		if bg, ok := pick(t, o, newYear).(*coast.Scene); !ok {
-			t.Fatalf("New Year: picked %T, want coast", bg)
+		switch bg := pick(t, o, newYear).(type) {
+		case *trees.Scene, *coast.Scene:
+		default:
+			t.Fatalf("New Year: picked %T, want trees or coast", bg)
 		}
 	}
 	// coast has nothing for Diwali, so the day falls back to the pool.

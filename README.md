@@ -180,7 +180,8 @@ tcal --bg seasons --bg-time 2026-12-31T23:30   # New Year, near midnight
 |------------|-------|-------|
 | `trees` | Diwali | diyas with flickering flames along the ground and on the bench; the lamp glows warmer |
 | `trees` | Onam | a pookalam on the ground beside the bench; flower petals fall and lie in place of leaves |
-| `trees` | Christmas | twinkling fairy lights on the bare branches and a star atop each tree |
+| `trees` | Christmas | ropes of twinkling lights draped across the bare crowns and a star atop each tree |
+| `trees` | New Year | fireworks in the sky above the calendar (or above each tree), with the light ropes still up |
 | `trees` | Birthday | balloons tied to the bench and a cake with a candle on the seat |
 | `coast` | New Year | fireworks over the sea, reflected in the water, busiest around midnight |
 

@@ -14,6 +14,7 @@ import (
 	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/palette"
 	"github.com/v4run/tcal/internal/scene"
+	"github.com/v4run/tcal/internal/smooth/eventart"
 	"github.com/v4run/tcal/internal/smooth/seasons"
 )
 
@@ -190,6 +191,8 @@ type Scene struct {
 	birthday *events.MonthDay
 	event    events.Kind
 	hasEvent bool
+	sky      []skyFire // New Year fireworks, while they go off
+	fwRate   float64   // their launches per second
 }
 
 // New returns a w×h scene that draws randomness from rng.
@@ -217,7 +220,11 @@ func (s *Scene) SetTime(now, shown time.Time) {
 		}
 		if ok != s.hasEvent || occ.Kind != s.event {
 			s.event, s.hasEvent = occ.Kind, ok
+			s.placeFireworks()
 			changed = true
+		}
+		if ok && occ.Kind == events.NewYear {
+			s.fwRate = eventart.NewYearRate(now)
 		}
 	}
 	if changed {
@@ -259,6 +266,7 @@ func (s *Scene) layout() {
 		s.trees = append(s.trees, grow(rng, float64(m[0]*2), float64(m[1]*2), float64(s.h*4-2)))
 	}
 	s.spread()
+	s.placeFireworks()
 }
 
 // Snowfall: one flake per flakeArea cells, falling flakeSpeed dots per
@@ -418,6 +426,7 @@ func (s *Scene) Step(dt time.Duration) {
 
 	s.stepBird(sec)
 	s.stepSnow(sec)
+	s.stepFireworks(dt)
 
 	lk := s.look()
 	wind := s.wind()

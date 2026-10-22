@@ -2,15 +2,18 @@ package trees
 
 import (
 	"math"
+	"math/rand/v2"
+	"time"
 
 	"github.com/v4run/tcal/internal/events"
 	"github.com/v4run/tcal/internal/scene"
+	"github.com/v4run/tcal/internal/smooth/eventart"
 )
 
 // Celebrates reports whether the scene has a way to mark the event.
 func Celebrates(k events.Kind) bool {
 	switch k {
-	case events.Diwali, events.Onam, events.Christmas, events.Birthday:
+	case events.Diwali, events.Onam, events.Christmas, events.Birthday, events.NewYear:
 		return true
 	}
 	return false
@@ -100,27 +103,62 @@ func (s *Scene) twinkle(i int) float64 {
 	return k
 }
 
-// drawLights strings fairy lights along t's thinner branches at Christmas,
-// with a star on top.
+// Light ropes: drapes at these fractions of a tree's height, each sagging
+// in two swags across the crown, with a bulb every bulbGap dots.
+var ropeHeights = []float64{0.5, 0.65, 0.8}
+
+const bulbGap = 4
+
+var wireCol = scene.RGB{R: 75, G: 85, B: 75}
+
+// drawLights drapes ropes of twinkling lights across t's crown at
+// Christmas and New Year, with a star on top at Christmas.
 func (s *Scene) drawLights(t tree, at func(x, y float64) (float64, float64)) {
-	if !s.celebrating(events.Christmas) {
+	if !s.celebrating(events.Christmas) && !s.celebrating(events.NewYear) {
 		return
 	}
-	n := 0
-	for i, l := range t.limbs {
-		if l.width >= 3 {
+	for r, f := range ropeHeights {
+		y := t.height * f
+		// The rope hangs from the outermost branches at this height.
+		xl, xr, found := 0.0, 0.0, false
+		for _, l := range t.limbs {
+			lo, hi := min(l.y0, l.y1), max(l.y0, l.y1)
+			if y < lo || y > hi || hi == lo {
+				continue
+			}
+			x := l.x0 + (l.x1-l.x0)*(y-l.y0)/(l.y1-l.y0)
+			if !found {
+				xl, xr, found = x, x, true
+			}
+			xl, xr = min(xl, x), max(xr, x)
+		}
+		if !found || xr-xl < 6 {
 			continue
 		}
-		for _, u := range []float64{0.35, 0.8} {
-			if hash(t.seed, i, int(u*10)) < 0.3 {
-				continue // not every spot gets a light
+		mid := (xl + xr) / 2
+		bulb := 0
+		for _, sw := range [][2]float64{{xl, mid}, {mid, xr}} {
+			span := sw[1] - sw[0]
+			sag := 1 + span*0.18
+			for d := 0.0; d <= span; d++ {
+				u := d / span
+				x, yy := at(sw[0]+d, y-sag*4*u*(1-u))
+				if int(d)%bulbGap == 0 {
+					i := t.seed*100 + r*40 + bulb
+					bulb++
+					if k := s.twinkle(i); k > 0 {
+						s.dot(x, yy, scale(fairyCols[i%len(fairyCols)], k))
+						continue
+					}
+				}
+				if int(d)%2 == 0 {
+					s.dot(x, yy, wireCol)
+				}
 			}
-			x, y := at(l.x0+(l.x1-l.x0)*u, l.y0+(l.y1-l.y0)*u)
-			if k := s.twinkle(t.seed + n); k > 0 {
-				s.dot(x, y, scale(fairyCols[n%len(fairyCols)], k))
-			}
-			n++
 		}
+	}
+	if !s.celebrating(events.Christmas) {
+		return
 	}
 	// The star crowns the highest twig.
 	top := t.tips[0]
@@ -135,6 +173,58 @@ func (s *Scene) drawLights(t tree, at func(x, y float64) (float64, float64)) {
 	}
 }
 
+// skyFire is a patch of sky where New Year fireworks go off: its top-left
+// cell and the bursts in it.
+type skyFire struct {
+	x0, y0 int
+	fw     *eventart.Fireworks
+}
+
+// placeFireworks finds sky for New Year fireworks: a band across the top
+// when the calendar leaves room above it, else the space above each tree.
+func (s *Scene) placeFireworks() {
+	s.sky = nil
+	if !s.celebrating(events.NewYear) || s.w == 0 {
+		return
+	}
+	add := func(x0, y0, w, h int) {
+		if w < 8 || h < 3 {
+			return
+		}
+		fw := eventart.NewFireworks(rand.New(rand.NewPCG(s.seeds[0]+uint64(x0), s.seeds[1]+uint64(y0))), min(2, float64(h)/2-0.5))
+		fw.Resize(w, h)
+		s.sky = append(s.sky, skyFire{x0, y0, fw})
+	}
+	if !s.boxSet || s.box.Y0 == -1 {
+		add(1, 0, s.w-2, min(6, s.h/4))
+		return
+	}
+	if above := s.box.Y0; above >= 4 {
+		add(1, 0, s.w-2, min(6, above-1))
+		return
+	}
+	for _, t := range s.trees {
+		top := int((float64(s.h*4-2)-t.height)/4) - 1
+		half := int(math.Min(float64(maxTreeCols), t.height/2)) / 2
+		x0 := int(t.baseX/2) - half
+		add(max(x0, 0), 0, half*2, min(6, top))
+	}
+}
+
+// stepFireworks ages and launches the New Year bursts.
+func (s *Scene) stepFireworks(dt time.Duration) {
+	for _, f := range s.sky {
+		f.fw.Step(dt, s.fwRate)
+	}
+}
+
+// drawFireworks paints the New Year bursts in their patches of sky.
+func (s *Scene) drawFireworks() {
+	for _, f := range s.sky {
+		f.fw.Draw(&s.canvas, float64(f.x0), float64(f.y0))
+	}
+}
+
 // drawEvent draws the event's things on and around the bench and ground.
 func (s *Scene) drawEvent(ground float64) {
 	switch {
@@ -144,6 +234,8 @@ func (s *Scene) drawEvent(ground float64) {
 		s.drawPookalam(ground)
 	case s.celebrating(events.Birthday):
 		s.drawBirthday(ground)
+	case s.celebrating(events.NewYear):
+		s.drawFireworks()
 	}
 }
 

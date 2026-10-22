@@ -94,3 +94,43 @@ func TestEvents_OnamPetalsFall(t *testing.T) {
 		}
 	}
 }
+
+func TestEvents_NewYearFireworksInTheSky(t *testing.T) {
+	now := time.Date(2026, 12, 31, 23, 55, 0, 0, time.Local)
+	for _, tc := range []struct {
+		b    scene.Box
+		desc string
+	}{
+		{scene.Box{X0: 34, X1: 86, Y0: 8, Y1: 24}, "band above the calendar"},
+		{scene.Box{X0: 34, X1: 86, Y0: 1, Y1: 33}, "above each tree"},
+	} {
+		s := New(120, 36, rand.New(rand.NewPCG(1, 2)))
+		s.EnableEvents(nil)
+		s.SetTime(now, now)
+		s.Glyph(0, 0, tc.b)
+		if len(s.sky) == 0 {
+			t.Fatalf("%s: no sky for fireworks", tc.desc)
+		}
+		burst := false
+		for range 90 {
+			s.Step(33 * time.Millisecond)
+			for _, f := range s.sky {
+				for y := f.y0; y < f.y0+3; y++ {
+					for x := f.x0; x < f.x0+20; x++ {
+						if s.canvas.Glyph(x, y) != 0 && s.canvas.RGB(x, y) != flakeCol {
+							burst = true
+						}
+					}
+				}
+			}
+		}
+		if !burst {
+			t.Errorf("%s: no bursts", tc.desc)
+		}
+		for _, f := range s.sky {
+			if tc.b.Contains(f.x0, f.y0) {
+				t.Errorf("%s: fireworks start inside the calendar at %d,%d", tc.desc, f.x0, f.y0)
+			}
+		}
+	}
+}
